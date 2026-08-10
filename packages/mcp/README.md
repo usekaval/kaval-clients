@@ -65,7 +65,7 @@ It speaks MCP over stdio. Point any MCP client at it.
 | `list_extraction_schemas`           | List the extraction schemas registered in this workspace.                                                                                                                |
 | `create_policy_update`              | Request a one-off payer + period extraction run against a bound schema. Requires `policy-update:manage`.                                                                 |
 | `get_policy_update`                 | Get one extraction run ('policy update') by id — status, schema, and result once it succeeds.                                                                            |
-| `list_policy_updates`               | List extraction runs, optionally filtered by payer and/or publication-month `YYYY-MM` period.                                                                            |
+| `list_policy_updates`               | List extraction runs with payer/period/time filters, cursor pagination, and optional `expand=document` for webhook-parity payloads.                                      |
 | `list_policy_update_packages`       | List the monthly PDF + manifest rollups extraction runs are packaged into.                                                                                               |
 | `add_source`                        | Tell Kaval what to watch — a URL, a named authority to resolve, or a document you will push in.                                                                          |
 | `list_sources`                      | What Kaval currently watches for this workspace, including sources it auto-registered after a check cited them.                                                          |

@@ -77,6 +77,34 @@ export interface CreatePolicyUpdateInput {
 export interface PolicyUpdateListOptions {
   payer_id?: string;
   period?: string;
+  /** Inclusive YYYY-MM lower bound on `period`. Incompatible with exact `period`. */
+  period_from?: string;
+  /** Inclusive YYYY-MM upper bound on `period`. Incompatible with exact `period`. */
+  period_to?: string;
+  /** ISO-8601 — only runs with `created_at >=` this timestamp. */
+  created_since?: string;
+  /** ISO-8601 — only runs with `updated_at >=` this timestamp. */
+  updated_since?: string;
+  cursor?: string;
+  limit?: number;
+  /** When `"document"`, response includes parallel webhook-parity `documents`. */
+  expand?: "document";
+}
+
+export interface PolicyUpdateListPage {
+  extraction_runs: ExtractionRun[];
+  /** Present when `expand: "document"` — same length/order as `extraction_runs`. */
+  documents?: Array<PolicyUpdateDocumentEvent["data"] | null>;
+  next_cursor: string | null;
+}
+
+export interface PolicyUpdateGetOptions {
+  expand?: "document";
+}
+
+export interface PolicyUpdateGetResult {
+  extraction_run: ExtractionRun;
+  document?: PolicyUpdateDocumentEvent["data"] | null;
 }
 
 export type PolicyUpdatePackageStatus = "ready" | "partial";

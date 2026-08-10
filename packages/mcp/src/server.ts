@@ -552,7 +552,7 @@ async function safe(fn: () => Promise<unknown>, signal?: AbortSignal) {
  * `report_outcome` closes the calibration loop. `verify` is a deprecated pilot alias.
  */
 export function createMcpServer(client: Kaval): McpServer {
-  const server = new McpServer({ name: "kaval", version: "0.7.4" });
+  const server = new McpServer({ name: "kaval", version: "0.7.5" });
   const api = client as unknown as WireClient;
 
   server.registerTool(
@@ -1183,30 +1183,38 @@ export function createMcpServer(client: Kaval): McpServer {
     "get_policy_update",
     {
       description:
-        "Get one extraction run ('policy update') by id — its status (processing | retry | succeeded | review_required | failed), the schema it ran against, and its extracted result once it succeeds.",
-      inputSchema: { run_id: uuidInput },
+        "Get one extraction run ('policy update') by id — its status (processing | retry | succeeded | review_required | failed), the schema it ran against, and its extracted result once it succeeds. Pass expand='document' for the same PolicyUpdateDocumentData payload the policy_update.document webhook delivers (pdf_href, content_href, sections, optional extraction.records / record_evidence).",
+      inputSchema: {
+        run_id: uuidInput,
+        expand: z.literal("document").optional(),
+      },
     },
-    async ({ run_id }, { signal }) =>
-      safe(() => api.getPolicyUpdate(run_id, { signal }), signal),
+    async ({ run_id, expand }, { signal }) =>
+      safe(
+        () => api.getPolicyUpdate(run_id, { signal, ...(expand ? { expand } : {}) }),
+        signal,
+      ),
   );
 
   server.registerTool(
     "list_policy_updates",
     {
       description:
-        "List extraction runs ('policy updates'), optionally filtered by payer and/or YYYY-MM period.",
+        "List extraction runs ('policy updates'). Filter by payer_id, exact period (YYYY-MM), period_from/period_to, created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources live at list_sources / get_source_version_content.",
       inputSchema: {
         payer_id: payerIdInput.optional(),
         period: periodInput.optional(),
+        period_from: periodInput.optional(),
+        period_to: periodInput.optional(),
+        created_since: z.string().datetime({ offset: true }).optional(),
+        updated_since: z.string().datetime({ offset: true }).optional(),
+        cursor: z.string().min(1).max(1_000).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        expand: z.literal("document").optional(),
       },
     },
     async (args, { signal }) =>
-      safe(
-        async () => ({
-          policy_updates: await api.listPolicyUpdates({ signal, ...args }),
-        }),
-        signal,
-      ),
+      safe(async () => api.listPolicyUpdates({ signal, ...args }), signal),
   );
 
   server.registerTool(

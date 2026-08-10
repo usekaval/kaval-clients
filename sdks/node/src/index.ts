@@ -41,7 +41,10 @@ import type {
   CreatePolicyUpdateInput,
   ExtractionRun,
   ExtractionSchema,
+  PolicyUpdateGetOptions,
+  PolicyUpdateGetResult,
   PolicyUpdateListOptions,
+  PolicyUpdateListPage,
   PolicyUpdatePackage,
   PolicyUpdatePackageListOptions,
   SourceVersionContent,
@@ -1178,28 +1181,60 @@ export class Kaval {
 
   async getPolicyUpdate(
     runId: string,
-    options?: RequestOptions,
-  ): Promise<ExtractionRun> {
-    const { extraction_run } = await this.request<{
+    options?: RequestOptions & PolicyUpdateGetOptions,
+  ): Promise<ExtractionRun | PolicyUpdateGetResult> {
+    const query = new URLSearchParams();
+    if (options?.expand !== undefined) query.set("expand", options.expand);
+    const search = query.toString();
+    const response = await this.request<{
       extraction_run: ExtractionRun;
-    }>("GET", `/v1/policy-updates/${encodeId(runId)}`, undefined, options);
-    return extraction_run;
+      document?: PolicyUpdateGetResult["document"];
+    }>(
+      "GET",
+      `/v1/policy-updates/${encodeId(runId)}${search === "" ? "" : `?${search}`}`,
+      undefined,
+      options,
+    );
+    if (options?.expand === "document") {
+      return {
+        extraction_run: response.extraction_run,
+        document: response.document ?? null,
+      };
+    }
+    return response.extraction_run;
   }
 
   listPolicyUpdates(
     options?: RequestOptions & PolicyUpdateListOptions,
-  ): Promise<ExtractionRun[]> {
+  ): Promise<PolicyUpdateListPage> {
     const query = new URLSearchParams();
     if (options?.payer_id !== undefined)
       query.set("payer_id", options.payer_id);
     if (options?.period !== undefined) query.set("period", options.period);
+    if (options?.period_from !== undefined)
+      query.set("period_from", options.period_from);
+    if (options?.period_to !== undefined)
+      query.set("period_to", options.period_to);
+    if (options?.created_since !== undefined)
+      query.set("created_since", options.created_since);
+    if (options?.updated_since !== undefined)
+      query.set("updated_since", options.updated_since);
+    if (options?.cursor !== undefined) query.set("cursor", options.cursor);
+    if (options?.limit !== undefined) query.set("limit", String(options.limit));
+    if (options?.expand !== undefined) query.set("expand", options.expand);
     const search = query.toString();
-    return this.request<{ extraction_runs: ExtractionRun[] }>(
+    return this.request<PolicyUpdateListPage>(
       "GET",
       `/v1/policy-updates${search === "" ? "" : `?${search}`}`,
       undefined,
       options,
-    ).then((response) => response.extraction_runs);
+    ).then((response) => ({
+      extraction_runs: response.extraction_runs,
+      ...(response.documents !== undefined
+        ? { documents: response.documents }
+        : {}),
+      next_cursor: response.next_cursor ?? null,
+    }));
   }
 
   async getPolicyUpdatePackage(

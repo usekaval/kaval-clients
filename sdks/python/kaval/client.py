@@ -1130,15 +1130,22 @@ class KavalClient:
         self,
         run_id: str,
         *,
+        expand: Optional[Literal["document"]] = None,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
-    ) -> ExtractionRun:
+    ) -> ExtractionRun | dict[str, Any]:
         payload = self._request(
             "GET",
             f"/v1/policy-updates/{_path_segment(run_id, name='run_id')}",
+            params=_clean({"expand": expand}),
             timeout=timeout,
             cancellation_token=cancellation_token,
         )
+        if expand == "document":
+            return {
+                "extraction_run": cast(ExtractionRun, payload["extraction_run"]),
+                "document": payload.get("document"),
+            }
         return cast(ExtractionRun, payload["extraction_run"])
 
     def list_policy_updates(
@@ -1146,17 +1153,42 @@ class KavalClient:
         *,
         payer_id: Optional[str] = None,
         period: Optional[str] = None,
+        period_from: Optional[str] = None,
+        period_to: Optional[str] = None,
+        created_since: Optional[str] = None,
+        updated_since: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: Optional[int] = None,
+        expand: Optional[Literal["document"]] = None,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
-    ) -> list[ExtractionRun]:
+    ) -> dict[str, Any]:
         payload = self._request(
             "GET",
             "/v1/policy-updates",
-            params=_clean({"payer_id": payer_id, "period": period}),
+            params=_clean(
+                {
+                    "payer_id": payer_id,
+                    "period": period,
+                    "period_from": period_from,
+                    "period_to": period_to,
+                    "created_since": created_since,
+                    "updated_since": updated_since,
+                    "cursor": cursor,
+                    "limit": limit,
+                    "expand": expand,
+                }
+            ),
             timeout=timeout,
             cancellation_token=cancellation_token,
         )
-        return cast("list[ExtractionRun]", payload["extraction_runs"])
+        page: dict[str, Any] = {
+            "extraction_runs": cast("list[ExtractionRun]", payload["extraction_runs"]),
+            "next_cursor": payload.get("next_cursor"),
+        }
+        if "documents" in payload:
+            page["documents"] = payload["documents"]
+        return page
 
     def get_policy_update_package(
         self,

@@ -95,7 +95,7 @@ function policyUpdatesApi(): {
         },
       };
     } else if (url.pathname === "/v1/policy-updates") {
-      payload = { extraction_runs: [] };
+      payload = { extraction_runs: [], next_cursor: null };
     } else if (url.pathname === `/v1/policy-update-packages/${packageId}`) {
       payload = {
         package: {
@@ -217,7 +217,7 @@ describe("policy-update client surface", () => {
       payer_id: "aetna",
       period: "2026-08",
     });
-    expect(runs).toEqual([]);
+    expect(runs).toEqual({ extraction_runs: [], next_cursor: null });
     const listRequest = api.requests.find(
       (request) =>
         request.method === "GET" &&
@@ -226,6 +226,20 @@ describe("policy-update client surface", () => {
     expect(listRequest?.path).toBe(
       "/v1/policy-updates?payer_id=aetna&period=2026-08",
     );
+
+    const expanded = await client.listPolicyUpdates({
+      expand: "document",
+      updated_since: "2026-03-01T00:00:00.000Z",
+      limit: 25,
+    });
+    expect(expanded).toEqual({ extraction_runs: [], next_cursor: null });
+    const expandRequest = api.requests.find(
+      (request) =>
+        request.method === "GET" &&
+        request.path.includes("expand=document"),
+    );
+    expect(expandRequest?.path).toContain("updated_since=");
+    expect(expandRequest?.path).toContain("limit=25");
   });
 
   it("gets and lists monthly packages", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@usekaval/kaval",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "license": "Apache-2.0",
   "description": "Before an AI agent acts, Kaval verifies the facts the action depends on and returns ALLOW, REVIEW, or BLOCK with an Ed25519-signed receipt.",
   "type": "module",

@@ -97,7 +97,7 @@ function policyUpdatesFetch(): {
         },
       };
     } else if (parsed.pathname === "/v1/policy-updates") {
-      response = { extraction_runs: [] };
+      response = { extraction_runs: [], next_cursor: null };
     } else if (parsed.pathname === "/v1/policy-update-packages") {
       response = {
         packages: [
@@ -249,8 +249,9 @@ describe("MCP policy-update tools", () => {
         name: "list_policy_updates",
         arguments: { payer_id: "aetna", period: "2026-08" },
       }),
-    ) as { policy_updates?: unknown[] };
-    expect(listed.policy_updates).toEqual([]);
+    ) as { extraction_runs?: unknown[]; next_cursor?: string | null };
+    expect(listed.extraction_runs).toEqual([]);
+    expect(listed.next_cursor).toBeNull();
     expect(harness.requests.at(-1)).toMatchObject({
       path: "/v1/policy-updates?payer_id=aetna&period=2026-08",
       method: "GET",

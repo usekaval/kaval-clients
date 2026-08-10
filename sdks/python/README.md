@@ -161,7 +161,12 @@ run = kaval.create_policy_update(
 )
 # 202, run["status"] == "processing" — poll get_policy_update(run["id"]) or wait for the webhook.
 
-kaval.list_policy_updates(payer_id="aetna", period="2026-08")
+kaval.list_policy_updates(
+    payer_id="aetna",
+    updated_since="2026-03-01T00:00:00.000Z",
+    expand="document",
+    limit=50,
+)
 kaval.get_policy_update(run["id"])
 kaval.list_extraction_schemas()
 kaval.get_extraction_schema(schema["id"])

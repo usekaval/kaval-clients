@@ -2,6 +2,17 @@
 
 All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
+## 0.7.5 — released 2026-08-10
+
+### Changed
+
+- **`listPolicyUpdates` / `list_policy_updates` return a page.** Response is now
+  `{ extraction_runs, next_cursor, documents? }` instead of a bare run array. Supports
+  `period_from` / `period_to`, `created_since` / `updated_since`, `limit`, `cursor`, and
+  `expand: "document"` for webhook-parity `PolicyUpdateDocumentData` rows (parallel `documents`,
+  `null` for non-document runs). `getPolicyUpdate` / `get_policy_update` accept the same expand.
+  MCP `list_policy_updates` returns that page shape directly.
+
 ## 0.7.4 — released 2026-08-09
 
 ### Changed

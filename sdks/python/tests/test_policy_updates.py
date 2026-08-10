@@ -145,19 +145,31 @@ def test_get_and_list_policy_updates():
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append((request.method, str(request.url)))
         if request.url.path.endswith(RUN["id"]):
-            return httpx.Response(200, json={"extraction_run": RUN})
-        return httpx.Response(200, json={"extraction_runs": [RUN]})
+            return httpx.Response(200, json={"extraction_run": RUN, "document": None})
+        return httpx.Response(
+            200, json={"extraction_runs": [RUN], "documents": [None], "next_cursor": None}
+        )
 
     with make_client(handler) as c:
         assert c.get_policy_update(RUN["id"]) == RUN
-        assert c.list_policy_updates(payer_id="aetna", period="2026-08") == [RUN]
-        assert c.list_policy_updates() == [RUN]
+        assert c.list_policy_updates(payer_id="aetna", period="2026-08") == {
+            "extraction_runs": [RUN],
+            "documents": [None],
+            "next_cursor": None,
+        }
+        assert c.list_policy_updates(
+            expand="document", updated_since="2026-03-01T00:00:00.000Z", limit=25
+        ) == {
+            "extraction_runs": [RUN],
+            "documents": [None],
+            "next_cursor": None,
+        }
 
-    assert seen == [
-        ("GET", f"http://test/v1/policy-updates/{RUN['id']}"),
-        ("GET", "http://test/v1/policy-updates?payer_id=aetna&period=2026-08"),
-        ("GET", "http://test/v1/policy-updates"),
-    ]
+    assert seen[0] == ("GET", f"http://test/v1/policy-updates/{RUN['id']}")
+    assert seen[1] == ("GET", "http://test/v1/policy-updates?payer_id=aetna&period=2026-08")
+    assert "expand=document" in seen[2][1]
+    assert "updated_since=" in seen[2][1]
+    assert "limit=25" in seen[2][1]
 
 
 def test_get_and_list_policy_update_packages():
