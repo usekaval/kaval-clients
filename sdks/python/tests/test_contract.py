@@ -1028,7 +1028,7 @@ def test_auth_header_is_set():
 
 def test_error_response_raises():
     def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(402, json={"error": {"code": "insufficient_balance"}})
+        return httpx.Response(402, json={"error": {"code": "subscription_required"}})
 
     with make_client(handler) as c:
         with pytest.raises(KavalError) as exc:

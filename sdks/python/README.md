@@ -16,7 +16,7 @@ check stays a warm database read instead of a research run: push your own docume
 `send_event()`, and subscribe to `fact_state.delta` webhooks with `subscribe_fact_state_deltas()`
 so you are _told_ when a fact flips instead of polling for it.
 
-Version 0.7.2 does not expose contracts, fact imports, structured bulletins, or training review.
+Version 0.7.3 does not expose contracts, fact imports, structured bulletins, or training review.
 
 Use the Node SDK or MCP server for those portfolio operations.
 
@@ -171,7 +171,8 @@ Each payer + period's runs roll up into one monthly PDF + manifest:
 
 ```python
 kaval.list_policy_update_packages(payer_id="aetna", period="2026-08")
-kaval.get_policy_update_package(pkg["id"])
+pkg = kaval.get_policy_update_package(pkg_id)
+# pkg["pdf_href"] → GET /v1/policy-update-packages/{id}/document → 302 signed PDF (follow redirects).
 ```
 
 Read the canonical text (or heading-bounded sections) a source version was extracted from,
@@ -437,14 +438,15 @@ Explicit `api_key=` / `base_url=` always wins over the environment.
 - `KavalCancelledError` — a `cancellation_token` fired.
 - Timeouts surface as `httpx.TimeoutException`, not `KavalError`.
 
-`verify()` (the only billable call) sends a fresh UUID `Idempotency-Key` and performs one safety
-retry after an ambiguous `httpx.TransportError`, or when the API says the same operation is still
-in progress/finalizing; that retry reuses the exact key. Ordinary API errors, rate limits, and
-terminal 5xx responses are never retried. Pass `idempotency_key=` when an outer job system needs
-one logical operation to stay stable, and reuse a key only after an ambiguous/no-response failure.
+`verify()` is the only method that reserves an idempotency key by default: it sends a fresh UUID
+`Idempotency-Key` and performs one safety retry after an ambiguous `httpx.TransportError`, or when
+the API says the same operation is still in progress/finalizing; that retry reuses the exact key.
+Ordinary API errors, rate limits, and terminal 5xx responses are never retried. Pass
+`idempotency_key=` when an outer job system needs one logical operation to stay stable, and reuse a
+key only after an ambiguous/no-response failure.
 `create_webhook()` (and `subscribe_fact_state_deltas()` / `subscribe_policy_updates()`),
 `create_extraction_schema()`, and `create_policy_update()` also send an `Idempotency-Key` because
-the server requires one, but they are not billable and are never auto-retried.
+the server requires one; they are never auto-retried.
 
 **Default timeout: 150 seconds** (connect + read), overridable at construction or per call:
 

@@ -614,7 +614,7 @@ describe("Kaval", () => {
     const kaval = new Kaval({
       fetch: mockFetch(() => ({
         status: 402,
-        json: { error: { code: "insufficient_balance" } },
+        json: { error: { code: "subscription_required" } },
       })),
     });
     await expect(kaval.check({ action: "x" })).rejects.toBeInstanceOf(

@@ -19,7 +19,7 @@ key at [usekaval.com](https://usekaval.com).
 | [`kaval`](sdks/python)          | Python            | `pip install kaval`     | [sdks/python](sdks/python)   |
 | [`@usekaval/mcp`](packages/mcp) | MCP server        | `npx -y @usekaval/mcp`  | [packages/mcp](packages/mcp) |
 
-The 0.7.2 portfolio methods are available in the Node SDK and MCP server.
+The 0.7.3 portfolio methods are available in the Node SDK and MCP server.
 
 The Python SDK does not yet expose contracts, fact imports, bulletins, or training review.
 
@@ -88,7 +88,7 @@ into. This is the schema-bound successor to the free-text bulletin methods (`lis
 `check()` is what you call next, right before an agent acts on a fact this loop delivered — it is
 covered in the next section.
 
-> **0.6 is a breaking release.** Nine MCP tools collapsed to seven, and the whole verification
+> **0.6 was a breaking release.** Nine MCP tools collapsed to seven (before later portfolio/policy-update tools landed). The whole verification
 > surface collapsed to one call. Every removed endpoint now answers a structured
 > `410 {"error":"tool_retired","replacement":"/v1/check"}`, and the clients translate that into an
 > error that names `check` by name. See [Migrating from 0.5](#migrating-from-05).

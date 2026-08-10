@@ -2,6 +2,22 @@
 
 All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
+## 0.7.4 — released 2026-08-09
+
+### Changed
+
+- **Source capacity docs (two ceilings).** MCP README / `remove_source` tool text no longer teach a
+  single “200 active sources per workspace” bound. Correct model: 200 active `registered`/`resolved`
+  per workspace (auto-registered citations count here); 200 active `discovered` children **per
+  parent** (do not consume the workspace registered/resolved budget). Only deletion frees a slot.
+- **Package PDF download.** Documented that `list_policy_update_packages` rows expose `pdf_href` as
+  `GET /v1/policy-update-packages/{id}/document` → **302** to a short-lived signed PDF (follow
+  redirects). Node/Python READMEs note the same for `getPolicyUpdatePackage` /
+  `get_policy_update_package`.
+- **402 fixture vocabulary.** Hermetic tests / comments use `subscription_required` instead of the
+  retired `insufficient_balance` / “out of credit” wording. Clients still surface whatever
+  `error.code` the API returns.
+
 ## 0.7.3 — released 2026-08-07
 
 ### Changed

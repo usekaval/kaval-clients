@@ -11,7 +11,7 @@ This package is a **thin client** over the hosted Kaval API. All compilation, gr
 retrieval run server-side, so you bring just a Kaval API key — no model or search keys, no local
 engine.
 
-> **0.6 is a breaking release.** Nine tools became seven, and everything removed folded into `check`; the
+> **0.6 was a breaking release.** Nine tools became seven (before later portfolio/policy-update tools landed), and everything removed folded into `check`; the
 > API answers `410 tool_retired` for the old routes and this server translates that into an error
 > that tells the agent to call `check`. See [Migrating from 0.5](#migrating-from-05).
 
@@ -69,7 +69,7 @@ It speaks MCP over stdio. Point any MCP client at it.
 | `list_policy_update_packages`       | List the monthly PDF + manifest rollups extraction runs are packaged into.                                                                                               |
 | `add_source`                        | Tell Kaval what to watch — a URL, a named authority to resolve, or a document you will push in.                                                                          |
 | `list_sources`                      | What Kaval currently watches for this workspace, including sources it auto-registered after a check cited them.                                                          |
-| `remove_source`                     | Stop watching a source and forget it. The only thing that frees registry capacity, which auto-registered sources also consume.                                           |
+| `remove_source`                     | Stop watching a source and forget it. The only thing that frees a registered/resolved workspace slot (auto-registered citations count there; discovered children use a separate per-parent ceiling). |
 | `update_source`                     | Bind (or unbind) an extraction schema on a watched source, so every document that lands on it is extracted automatically. Requires `policy-update:manage`.               |
 | `get_source_version_content`        | Fetch the captured content of one fetched source version, as raw text or pre-split `sections`.                                                                           |
 | `report_outcome`                    | Report what actually happened after a prior check (by `receipt.id`), so Kaval can calibrate.                                                                             |
@@ -167,11 +167,16 @@ one page; `kind: "push"` is a document your own system sends to `POST /v1/events
 optional — a source a check cites is auto-watched — but registering first is what makes the _first_
 check on a fact fast.
 
-That auto-watching is why `remove_source` exists. A workspace watches a bounded number of _active_
-sources (200), auto-registered sources count against the same bound, and only deletion frees it —
-pausing does not. An agent that registers per task and never removes will eventually fill the
-registry, after which new citations are dropped silently and checks that used to be warm go back to
-researching. Remove what a task registered when the task is done.
+That auto-watching is why `remove_source` exists. Capacity is **two ceilings**, not one:
+
+- up to **200** active `registered` / `resolved` sources per workspace (auto-registered citations
+  count here; discovered children do **not**)
+- up to **200** active `discovered` children **per parent**
+
+Only deletion frees a slot — pausing does not. An agent that registers per task and never removes
+will eventually fill the workspace registered/resolved ceiling, after which new citations are
+dropped silently and checks that used to be warm go back to researching. Remove what a task
+registered when the task is done.
 
 ## Policy updates
 
@@ -182,8 +187,10 @@ period instead of waiting for the next document, call `create_policy_update` dir
 `get_policy_update` / `list_policy_updates` report the run's lifecycle
 (`processing` → `retry` → `succeeded` / `review_required` / `failed`), and
 `list_policy_update_packages` lists the monthly PDF + manifest rollups each payer/period is packaged
-into. `get_source_version_content` fetches the canonical text (or `format: "sections"`) an extraction
-run was computed from.
+into. Each package's `pdf_href` is a durable Kaval URL — `GET` (or `HEAD`) it and follow the **302**
+to a short-lived signed PDF (MCP does not expose a separate download tool; use HTTP with redirects).
+`get_source_version_content` fetches the canonical text (or `format: "sections"`) an extraction run
+was computed from.
 
 This is the schema-bound successor to the free-text bulletin tools (`list_bulletins`, `get_bulletin`,
 `list_bulletin_extraction_attempts`, `get_bulletin_extraction_attempt`), which are soft-deprecated but
@@ -236,7 +243,7 @@ Contract uploads, contract creation, claim reviews, fact imports, `create_extrac
 one. Reuse the returned key after an ambiguous failure.
 
 `check` deliberately carries none: it is a read of current state, so a retry recomputes rather than
-replays and cannot double-bill.
+replays and cannot double-count.
 
 ## Tool errors
 
@@ -245,11 +252,11 @@ branch on it rather than parse prose.
 
 | `error`                                                                 | what to do                                                                          |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| any API code (`unauthorized`, `insufficient_balance`, `bad_request`, …) | returned verbatim with `status` and the API's `message`                             |
+| any API code (`unauthorized`, `subscription_required`, `bad_request`, …) | returned verbatim with `status` and the API's `message`                             |
 | `tool_retired`                                                          | 410 — the message names the route that replaced the one you called                  |
 | `timeout`                                                               | retry with `mode: "fast"` or a smaller `max_wait_ms`                                |
 | `network_unreachable`                                                   | the API was never reached — check `KAVAL_BASE_URL` and network access               |
-| `request_ambiguous`                                                     | a billable call whose outcome is unknown; retry with the returned `idempotency_key` |
+| `request_ambiguous`                                                     | an idempotent call whose outcome is unknown; retry with the returned `idempotency_key` |
 
 ## Signed receipts
 

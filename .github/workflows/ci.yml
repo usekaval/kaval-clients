@@ -38,9 +38,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Release workflow (v* tag → npm + mcp + pypi)
         run: node scripts/check-release-workflow.mjs
-      # NOTE: .github/scripts/check-docs.mjs still asserts the removed staging/live gate exists in
-      # this file and in release.yml. It is owned elsewhere and has to be updated to match; this
-      # step fails until it is.
       - name: Front-door docs match the shipped clients
         run: pnpm run check:docs
       # `check` builds first (@usekaval/kaval before @usekaval/mcp, topological) so the MCP typecheck/test resolve

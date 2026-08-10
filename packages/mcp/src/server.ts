@@ -475,10 +475,11 @@ function isTimeout(error: unknown, signal: AbortSignal | undefined): boolean {
   );
 }
 
-/** Run a tool body, returning a sanitized error result. An API error (e.g. 402 out-of-credit, 401
- *  invalid key, 410 tool_retired) is surfaced with its status + code/message so the agent can act
- *  on it; a timeout and an unreachable host are named too, because both have a move the agent can
- *  make. Anything else collapses to a generic message so internal details never leak. */
+/** Run a tool body, returning a sanitized error result. An API error (e.g. 402 subscription_required
+ *  / entitlement failure, 401 invalid key, 410 tool_retired) is surfaced with its status +
+ *  code/message so the agent can act on it; a timeout and an unreachable host are named too,
+ *  because both have a move the agent can make. Anything else collapses to a generic message so
+ *  internal details never leak. */
 async function safe(fn: () => Promise<unknown>, signal?: AbortSignal) {
   try {
     return json(await fn());
@@ -1212,7 +1213,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_policy_update_packages",
     {
       description:
-        "List the monthly PDF + manifest rollups every payer/period's extraction runs are packaged into, optionally filtered by payer and/or YYYY-MM period.",
+        "List the monthly PDF + manifest rollups every payer/period's extraction runs are packaged into, optionally filtered by payer and/or YYYY-MM period. Each row's pdf_href is GET /v1/policy-update-packages/{id}/document — follow the 302 to a short-lived signed PDF (this tool does not download bytes).",
       inputSchema: {
         payer_id: payerIdInput.optional(),
         period: periodInput.optional(),
@@ -1329,7 +1330,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "remove_source",
     {
       description:
-        "Stop watching a source and forget it, by the `id` `add_source` or `list_sources` returned. Removal is the only thing that frees registry capacity, and capacity is finite: a workspace watches a bounded number of ACTIVE sources, and every URL a check cites gets auto-registered against that same bound, so an agent that only ever adds eventually fills it — after which new citations are silently dropped and checks that used to be warm go back to researching. Remove what you registered for a task once the task is done. This forgets the source itself, not the facts already checked against it.",
+        "Stop watching a source and forget it, by the `id` `add_source` or `list_sources` returned. Removal is the only thing that frees a slot. Capacity is two ceilings: up to 200 active registered/resolved sources per workspace (every URL a check cites auto-registers against that ceiling), and up to 200 active discovered children per parent (those do not consume the workspace registered/resolved budget). Pausing does not free either. An agent that only ever adds eventually fills the workspace ceiling — after which new citations are silently dropped and checks that used to be warm go back to researching. Remove what you registered for a task once the task is done. This forgets the source itself, not the facts already checked against it.",
       inputSchema: {
         id: z
           .string()

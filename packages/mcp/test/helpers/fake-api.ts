@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 /** A fake `/v1/*` fetch that always rejects with the given API error envelope, so MCP tests can
- *  exercise the out-of-credit (402) / invalid-key (401) paths without the network or the engine. */
+ *  exercise entitlement (402 subscription_required) / invalid-key (401) paths without the network or the engine. */
 export function failingKavalFetch(
   status: number,
   code: string,

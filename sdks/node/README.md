@@ -451,8 +451,9 @@ await kaval.getExtractionSchema(schema.id);
 Each payer + period's runs roll up into one monthly PDF + manifest:
 
 ```ts
-await kaval.listPolicyUpdatePackages({ payer_id: "aetna", period: "2026-08" });
-await kaval.getPolicyUpdatePackage(pkg.id);
+const packages = await kaval.listPolicyUpdatePackages({ payer_id: "aetna", period: "2026-08" });
+const pkg = await kaval.getPolicyUpdatePackage(packages[0]!.id);
+// pkg.pdf_href → GET /v1/policy-update-packages/{id}/document → 302 signed PDF (follow redirects).
 ```
 
 Read the canonical text (or heading-bounded sections) a source version was extracted from directly,
@@ -655,14 +656,14 @@ wire-invalid shapes locally before spending a request.
 trustworthy response, or the API says the operation is still being finalized. It does not retry
 ordinary API errors, rate limits, or terminal 5xx responses. If both bounded attempts stay
 ambiguous, the thrown error exposes `error.idempotencyKey` — pass it back explicitly after your own
-delay to resume the same operation instead of billing a new one.
+delay to resume the same operation instead of counting a second attempt.
 
 `createWebhook()` (and `subscribeFactStateDeltas()` / `subscribePolicyUpdates()`),
 `createExtractionSchema()`, and `createPolicyUpdate()` send a key because the API requires one; they
 generate it when you do not supply it.
 
 `check()` deliberately sends none: it is a read of current state, so a retry recomputes rather than
-replays and cannot double-bill.
+replays and cannot double-count.
 
 Every method — `health()` included — accepts a final `{ idempotencyKey?, signal?, timeoutMs? }`. The
 constructor defaults to a 150-second deadline; override per call or set `timeoutMs: null` to disable

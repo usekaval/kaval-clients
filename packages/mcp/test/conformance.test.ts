@@ -596,12 +596,12 @@ describe("MCP conformance", () => {
     expect(calls).toBe(1);
   });
 
-  it("surfaces a zero-balance (402) as a clear out-of-credit error, not 'internal error'", async () => {
+  it("surfaces a subscription entitlement (402) as a clear named error, not 'internal error'", async () => {
     const client = await connectClient(
       failingKavalFetch(
         402,
-        "insufficient_balance",
-        "out of credit — top up to continue",
+        "subscription_required",
+        "An active subscription is required to continue",
       ),
     );
     const res = await client.callTool({
@@ -610,8 +610,8 @@ describe("MCP conformance", () => {
     });
     expect((res as { isError?: boolean }).isError).toBe(true);
     const out = parseToolText(res);
-    expect(out.error).toBe("insufficient_balance");
-    expect(out.message).toContain("out of credit");
+    expect(out.error).toBe("subscription_required");
+    expect(out.message).toContain("subscription");
     expect(out.status).toBe(402);
     expect(out.idempotency_key).toBeUndefined();
   });
