@@ -76,10 +76,9 @@ export interface CreatePolicyUpdateInput {
 
 export interface PolicyUpdateListOptions {
   payer_id?: string;
-  period?: string;
-  /** Inclusive YYYY-MM lower bound on `period`. Incompatible with exact `period`. */
+  /** Inclusive YYYY-MM lower bound on run `period`. Optional alone or with `period_to`. */
   period_from?: string;
-  /** Inclusive YYYY-MM upper bound on `period`. Incompatible with exact `period`. */
+  /** Inclusive YYYY-MM upper bound on run `period`. Optional alone or with `period_from`. */
   period_to?: string;
   /** ISO-8601 — only runs with `created_at >=` this timestamp. */
   created_since?: string;

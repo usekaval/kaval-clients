@@ -1210,7 +1210,6 @@ export class Kaval {
     const query = new URLSearchParams();
     if (options?.payer_id !== undefined)
       query.set("payer_id", options.payer_id);
-    if (options?.period !== undefined) query.set("period", options.period);
     if (options?.period_from !== undefined)
       query.set("period_from", options.period_from);
     if (options?.period_to !== undefined)

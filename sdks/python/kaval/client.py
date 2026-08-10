@@ -1152,7 +1152,6 @@ class KavalClient:
         self,
         *,
         payer_id: Optional[str] = None,
-        period: Optional[str] = None,
         period_from: Optional[str] = None,
         period_to: Optional[str] = None,
         created_since: Optional[str] = None,
@@ -1169,7 +1168,6 @@ class KavalClient:
             params=_clean(
                 {
                     "payer_id": payer_id,
-                    "period": period,
                     "period_from": period_from,
                     "period_to": period_to,
                     "created_since": created_since,

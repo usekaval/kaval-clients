@@ -247,13 +247,17 @@ describe("MCP policy-update tools", () => {
     const listed = parseToolText(
       await client.callTool({
         name: "list_policy_updates",
-        arguments: { payer_id: "aetna", period: "2026-08" },
+        arguments: {
+          payer_id: "aetna",
+          period_from: "2026-01",
+          period_to: "2026-08",
+        },
       }),
     ) as { extraction_runs?: unknown[]; next_cursor?: string | null };
     expect(listed.extraction_runs).toEqual([]);
     expect(listed.next_cursor).toBeNull();
     expect(harness.requests.at(-1)).toMatchObject({
-      path: "/v1/policy-updates?payer_id=aetna&period=2026-08",
+      path: "/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
       method: "GET",
     });
   });

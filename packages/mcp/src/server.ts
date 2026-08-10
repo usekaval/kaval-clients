@@ -1200,10 +1200,9 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_policy_updates",
     {
       description:
-        "List extraction runs ('policy updates'). Filter by payer_id, exact period (YYYY-MM), period_from/period_to, created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources live at list_sources / get_source_version_content.",
+        "List extraction runs ('policy updates'). Filter by payer_id, optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
       inputSchema: {
         payer_id: payerIdInput.optional(),
-        period: periodInput.optional(),
         period_from: periodInput.optional(),
         period_to: periodInput.optional(),
         created_since: z.string().datetime({ offset: true }).optional(),

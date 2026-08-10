@@ -215,7 +215,8 @@ describe("policy-update client surface", () => {
 
     const runs = await client.listPolicyUpdates({
       payer_id: "aetna",
-      period: "2026-08",
+      period_from: "2026-01",
+      period_to: "2026-08",
     });
     expect(runs).toEqual({ extraction_runs: [], next_cursor: null });
     const listRequest = api.requests.find(
@@ -224,7 +225,7 @@ describe("policy-update client surface", () => {
         request.path.startsWith("/v1/policy-updates?"),
     );
     expect(listRequest?.path).toBe(
-      "/v1/policy-updates?payer_id=aetna&period=2026-08",
+      "/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
     );
 
     const expanded = await client.listPolicyUpdates({

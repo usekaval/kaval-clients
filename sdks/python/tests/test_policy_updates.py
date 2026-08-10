@@ -152,7 +152,9 @@ def test_get_and_list_policy_updates():
 
     with make_client(handler) as c:
         assert c.get_policy_update(RUN["id"]) == RUN
-        assert c.list_policy_updates(payer_id="aetna", period="2026-08") == {
+        assert c.list_policy_updates(
+            payer_id="aetna", period_from="2026-01", period_to="2026-08"
+        ) == {
             "extraction_runs": [RUN],
             "documents": [None],
             "next_cursor": None,
@@ -166,7 +168,10 @@ def test_get_and_list_policy_updates():
         }
 
     assert seen[0] == ("GET", f"http://test/v1/policy-updates/{RUN['id']}")
-    assert seen[1] == ("GET", "http://test/v1/policy-updates?payer_id=aetna&period=2026-08")
+    assert seen[1] == (
+        "GET",
+        "http://test/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
+    )
     assert "expand=document" in seen[2][1]
     assert "updated_since=" in seen[2][1]
     assert "limit=25" in seen[2][1]
