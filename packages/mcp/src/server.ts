@@ -1191,7 +1191,11 @@ export function createMcpServer(client: Kaval): McpServer {
     },
     async ({ run_id, expand }, { signal }) =>
       safe(
-        () => api.getPolicyUpdate(run_id, { signal, ...(expand ? { expand } : {}) }),
+        () =>
+          api.getPolicyUpdate(run_id, {
+            signal,
+            ...(expand ? { expand } : {}),
+          }),
         signal,
       ),
   );
