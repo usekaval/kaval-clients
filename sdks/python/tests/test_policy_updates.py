@@ -200,19 +200,31 @@ def test_update_source_binds_and_unbinds_an_extraction_schema():
     captured = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured.append(
-            (request.method, request.url.path, json.loads(request.content))
-        )
-        return httpx.Response(200, json={"source": SOURCE})
+        body = json.loads(request.content)
+        captured.append((request.method, request.url.path, body))
+        payload: dict = {"source": SOURCE}
+        if body.get("reprocess") is True:
+            payload["reprocess_queued"] = 3
+        return httpx.Response(200, json=payload)
 
     with make_client(handler) as c:
         out = c.update_source(SOURCE["id"], extraction_schema_id=SCHEMA["id"])
         c.update_source(SOURCE["id"], extraction_schema_id=None)
+        reprocessed = c.update_source(
+            SOURCE["id"], extraction_schema_id=SCHEMA["id"], reprocess=True
+        )
 
     assert out["extraction_schema_id"] == SCHEMA["id"]
+    assert "reprocess_queued" not in out
+    assert reprocessed["reprocess_queued"] == 3
     assert captured == [
         ("PATCH", f"/v1/sources/{SOURCE['id']}", {"extraction_schema_id": SCHEMA["id"]}),
         ("PATCH", f"/v1/sources/{SOURCE['id']}", {"extraction_schema_id": None}),
+        (
+            "PATCH",
+            f"/v1/sources/{SOURCE['id']}",
+            {"extraction_schema_id": SCHEMA["id"], "reprocess": True},
+        ),
     ]
 
 

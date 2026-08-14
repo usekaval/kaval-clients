@@ -70,7 +70,7 @@ It speaks MCP over stdio. Point any MCP client at it.
 | `add_source`                        | Tell Kaval what to watch — a URL, a named authority to resolve, or a document you will push in.                                                                          |
 | `list_sources`                      | What Kaval currently watches for this workspace, including sources it auto-registered after a check cited them.                                                          |
 | `remove_source`                     | Stop watching a source and forget it. The only thing that frees a registered/resolved workspace slot (auto-registered citations count there; discovered children use a separate per-parent ceiling). |
-| `update_source`                     | Bind (or unbind) an extraction schema on a watched source, so every document that lands on it is extracted automatically. Requires `policy-update:manage`.               |
+| `update_source`                     | Bind (or unbind) an extraction schema on a watched source. Pass `reprocess: true` to fill-missing re-extract prior versions (`source_change: schema_changed`). Requires `policy-update:manage`. |
 | `get_source_version_content`        | Fetch the captured content of one fetched source version, as raw text or pre-split `sections`.                                                                           |
 | `report_outcome`                    | Report what actually happened after a prior check (by `receipt.id`), so Kaval can calibrate.                                                                             |
 | `verify`                            | **Deprecated** pilot alias: one conclusion + explicit `evidence_refs` → a signed ProofPacket receipt. Use `check`.                                                       |
@@ -182,8 +182,11 @@ registered when the task is done.
 
 `create_extraction_schema` registers a JSON Schema; bind its `id` to a watched source with
 `update_source({ id, extraction_schema_id })` and every document that lands on that source afterward
-is extracted against the schema automatically — no polling. For a one-off run against a payer +
-period instead of waiting for the next document, call `create_policy_update` directly. Either way,
+is extracted against the schema automatically — no polling. Pass `reprocess: true` to also
+fill-missing re-extract versions that already ran under another schema; those webhooks carry
+`source_change: "schema_changed"` (join the original extract on `source_version_id`). For a one-off
+run against a payer + period instead of waiting for the next document, call `create_policy_update`
+directly. Either way,
 `get_policy_update` / `list_policy_updates` report the run's lifecycle
 (`processing` → `retry` → `succeeded` / `review_required` / `failed`), and
 `list_policy_update_packages` lists the monthly PDF + manifest rollups each payer/period is packaged

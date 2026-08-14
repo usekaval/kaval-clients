@@ -917,6 +917,16 @@ class WatchedSource(TypedDict):
     created_at: IsoTimestamp
 
 
+class UpdateSourceResult(WatchedSource):
+    """``PATCH /v1/sources/:id`` result.
+
+    Same watched source as :meth:`kaval.client.KavalClient.update_source` has always returned,
+    plus ``reprocess_queued`` when ``reprocess=True`` was accepted.
+    """
+
+    reprocess_queued: NotRequired[int]
+
+
 class AddSourceInput(TypedDict):
     kind: WatchedSourceKind
     #: The URL, connection id, or push locator. For ``kind: "entity"`` use ``name`` instead.
@@ -1011,6 +1021,8 @@ class ExtractionRun(TypedDict):
     created_at: IsoTimestamp
     updated_at: IsoTimestamp
     finished_at: NotRequired[IsoTimestamp]
+    reprocess: NotRequired[Literal[True]]
+    generation: NotRequired[int]
 
 
 class CreatePolicyUpdateInput(TypedDict):
@@ -1106,6 +1118,11 @@ class PolicyUpdateDocumentEventData(TypedDict):
     workspace_id: str
     payer_id: str
     source_version_id: str
+    #: ``new`` first content version; ``updated`` later version; ``schema_changed`` same PDF
+    #: under a newly bound schema. Match ``schema_changed`` on ``source_version_id``.
+    source_change: NotRequired[Literal["new", "updated", "schema_changed"]]
+    source_id: NotRequired[str]
+    generation: NotRequired[int]
     #: Durable Kaval source-version PDF URL — not a short-lived parser studio link.
     pdf_href: str
     content_href: str

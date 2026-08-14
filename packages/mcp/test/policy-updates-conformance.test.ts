@@ -133,6 +133,7 @@ function policyUpdatesFetch(): {
           extraction_schema_id: body(init)?.extraction_schema_id ?? null,
           created_at: "2026-08-06T00:00:00.000Z",
         },
+        ...(body(init)?.reprocess === true ? { reprocess_queued: 3 } : {}),
       };
     } else if (
       parsed.pathname === `/v1/source-versions/${VERSION_ID}/content` &&
@@ -294,6 +295,28 @@ describe("MCP policy-update tools", () => {
       path: `/v1/sources/${SOURCE_ID}`,
       method: "PATCH",
       body: { extraction_schema_id: SCHEMA_ID },
+    });
+  });
+
+  it("forwards reprocess on update_source", async () => {
+    const harness = policyUpdatesFetch();
+    const client = await connect(harness.fetch);
+
+    const updated = parseToolText(
+      await client.callTool({
+        name: "update_source",
+        arguments: {
+          id: SOURCE_ID,
+          extraction_schema_id: SCHEMA_ID,
+          reprocess: true,
+        },
+      }),
+    ) as { reprocess_queued?: number };
+    expect(updated.reprocess_queued).toBe(3);
+    expect(harness.requests[0]).toMatchObject({
+      path: `/v1/sources/${SOURCE_ID}`,
+      method: "PATCH",
+      body: { extraction_schema_id: SCHEMA_ID, reprocess: true },
     });
   });
 

@@ -1355,7 +1355,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "update_source",
     {
       description:
-        "Bind (or unbind) an extraction schema on a watched source, by the `id` add_source or list_sources returned. Once bound, every document that lands on the source is run through create_extraction_schema's schema automatically and delivered as a policy_update.document webhook — no more polling create_policy_update per period. Pass extraction_schema_id: null to unbind. Requires policy-update:manage.",
+        "Bind (or unbind) an extraction schema on a watched source, by the `id` add_source or list_sources returned. Once bound, every document that lands on the source is run through create_extraction_schema's schema automatically and delivered as a policy_update.document webhook — no more polling create_policy_update per period. Pass extraction_schema_id: null to unbind. Pass reprocess: true to also fill-missing re-extract versions that already ran under another schema (webhook source_change is schema_changed; join on source_version_id). Requires policy-update:manage.",
       inputSchema: {
         id: z
           .string()
@@ -1367,6 +1367,12 @@ export function createMcpServer(client: Kaval): McpServer {
           .nullable()
           .describe(
             "the extraction schema to bind, or null to unbind and stop automatic extraction",
+          ),
+        reprocess: z
+          .boolean()
+          .optional()
+          .describe(
+            "when true, also re-extract versions that already ran under another schema; default false. Invalid with extraction_schema_id null.",
           ),
       },
     },

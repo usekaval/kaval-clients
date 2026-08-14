@@ -429,6 +429,8 @@ const schema = await kaval.createExtractionSchema({
 
 await kaval.updateSource({ id: source.id, extraction_schema_id: schema.id });
 // extraction_schema_id: null unbinds it, leaving the source watched but unextracted.
+// reprocess: true also re-extracts versions that already ran under another schema
+// (webhook source_change: "schema_changed"; join on source_version_id).
 ```
 
 Prefer a one-off run over waiting for the next document? `createPolicyUpdate()` requests a payer +

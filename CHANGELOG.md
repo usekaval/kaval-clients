@@ -2,6 +2,12 @@
 
 All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
+## Unreleased
+
+### Added
+
+- `updateSource` / `update_source` accept optional `reprocess` (default false) to fill-missing re-extract versions that already ran under another schema. The returned source includes `reprocess_queued` when reprocess was accepted. `policy_update.document` `data.source_change` now includes `schema_changed`; match those events to the original extract on `data.source_version_id` (also envelope `correlation_id`). Extraction runs may include `reprocess: true` and `generation`. MCP `update_source` forwards `reprocess` and returns `reprocess_queued`.
+
 ## 0.7.5 — released 2026-08-10
 
 ### Changed

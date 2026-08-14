@@ -49,6 +49,8 @@ const schema = await kaval.createExtractionSchema({
   },
 });
 await kaval.updateSource({ id: source.id, extraction_schema_id: schema.id });
+// reprocess: true also re-extracts versions that already ran under another schema
+// (webhook source_change: "schema_changed"; join on source_version_id).
 
 // 3. Get pushed a policy_update.document webhook every time a new bulletin lands, already
 //    extracted against the schema — or poll listPolicyUpdates() for the same records.
@@ -73,7 +75,9 @@ schema = kaval.create_extraction_schema(
         "required": ["cpt_code", "requires_prior_auth"],
     },
 )
-kaval.update_source(id=source["id"], extraction_schema_id=schema["id"])
+kaval.update_source(source["id"], extraction_schema_id=schema["id"])
+# reprocess=True also re-extracts versions that already ran under another schema
+# (webhook source_change="schema_changed"; join on source_version_id).
 kaval.subscribe_policy_updates(callback_url="https://your-app.example.com/hooks/kaval")
 ```
 

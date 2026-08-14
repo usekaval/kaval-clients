@@ -55,6 +55,7 @@ from .models import (
     SourceEventResult,
     SourceVersionContent,
     SourceVersionSections,
+    UpdateSourceResult,
     VerifyResult,
     WatchedSource,
     WatchedSourceKind,
@@ -996,23 +997,35 @@ class KavalClient:
         source_id: str,
         *,
         extraction_schema_id: Optional[str],
+        reprocess: bool = False,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
-    ) -> WatchedSource:
+    ) -> UpdateSourceResult:
         """Bind (or, with ``extraction_schema_id=None``, unbind) the extraction schema a source
         runs.
 
         Every document that lands on this source afterward is extracted against the bound schema
-        and delivered as a ``policy_update.document`` webhook. Requires ``policy-update:manage``.
+        and delivered as a ``policy_update.document`` webhook. Pass ``reprocess=True`` to also
+        fill-missing re-extract versions that already ran under another schema
+        (``source_change: schema_changed``; join on ``source_version_id``). The returned source
+        includes ``reprocess_queued`` when reprocess was accepted. Requires
+        ``policy-update:manage``.
         """
+        body: dict[str, Any] = {"extraction_schema_id": extraction_schema_id}
+        if reprocess:
+            body["reprocess"] = True
         payload = self._request(
             "PATCH",
             f"/v1/sources/{_path_segment(source_id, name='source_id')}",
-            {"extraction_schema_id": extraction_schema_id},
+            body,
             timeout=timeout,
             cancellation_token=cancellation_token,
         )
-        return cast(WatchedSource, payload["source"])
+        source = cast(UpdateSourceResult, payload["source"])
+        queued = payload.get("reprocess_queued")
+        if isinstance(queued, int) and not isinstance(queued, bool):
+            return cast(UpdateSourceResult, {**source, "reprocess_queued": queued})
+        return source
 
     def get_source_version_content(
         self,

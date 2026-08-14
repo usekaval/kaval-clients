@@ -150,6 +150,8 @@ schema = kaval.create_extraction_schema(
 
 kaval.update_source(source["id"], extraction_schema_id=schema["id"])
 # extraction_schema_id=None unbinds it, leaving the source watched but unextracted.
+# reprocess=True also re-extracts versions that already ran under another schema
+# (webhook source_change="schema_changed"; join on source_version_id).
 ```
 
 Prefer a one-off run over waiting for the next document? `create_policy_update()` requests a payer

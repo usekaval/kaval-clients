@@ -50,6 +50,7 @@ import type {
   SourceVersionContent,
   SourceVersionSections,
   UpdateSourceInput,
+  UpdateSourceResult,
 } from "./policy-updates.js";
 import { POLICY_UPDATE_EVENT_TYPES } from "./policy-updates.js";
 import type {
@@ -1070,19 +1071,33 @@ export class Kaval {
   /**
    * Bind (or, with `extraction_schema_id: null`, unbind) the extraction schema a source runs.
    * Every document that lands on this source afterward is extracted against the bound schema and
-   * delivered as a `policy_update.document` webhook. Requires `policy-update:manage`.
+   * delivered as a `policy_update.document` webhook. Pass `reprocess: true` to also fill-missing
+   * re-extract versions that already ran under another schema (`source_change: schema_changed`;
+   * join on `source_version_id`). The returned source includes `reprocess_queued` when reprocess
+   * was accepted. Requires `policy-update:manage`.
    */
   async updateSource(
     input: UpdateSourceInput,
     options?: RequestOptions,
-  ): Promise<WatchedSource> {
-    const { source } = await this.request<{ source: WatchedSource }>(
+  ): Promise<UpdateSourceResult> {
+    const { source, reprocess_queued } = await this.request<{
+      source: WatchedSource;
+      reprocess_queued?: number;
+    }>(
       "PATCH",
       `/v1/sources/${encodeId(input.id)}`,
-      { extraction_schema_id: input.extraction_schema_id },
+      {
+        extraction_schema_id: input.extraction_schema_id,
+        ...(input.reprocess !== undefined
+          ? { reprocess: input.reprocess }
+          : {}),
+      },
       options,
     );
-    return source;
+    return {
+      ...source,
+      ...(typeof reprocess_queued === "number" ? { reprocess_queued } : {}),
+    };
   }
 
   /**

@@ -131,6 +131,10 @@ function policyUpdatesApi(): {
           extraction_schema_id: schemaId,
           created_at: "2026-08-06T00:00:00.000Z",
         },
+        ...((requests.at(-1)?.body as { reprocess?: boolean } | undefined)
+          ?.reprocess === true
+          ? { reprocess_queued: 3 }
+          : {}),
       };
     } else if (
       url.pathname === `/v1/source-versions/${versionId}/content` &&
@@ -236,8 +240,7 @@ describe("policy-update client surface", () => {
     expect(expanded).toEqual({ extraction_runs: [], next_cursor: null });
     const expandRequest = api.requests.find(
       (request) =>
-        request.method === "GET" &&
-        request.path.includes("expand=document"),
+        request.method === "GET" && request.path.includes("expand=document"),
     );
     expect(expandRequest?.path).toContain("updated_since=");
     expect(expandRequest?.path).toContain("limit=25");
@@ -265,10 +268,22 @@ describe("policy-update client surface", () => {
       extraction_schema_id: SCHEMA_ID,
     });
     expect(source.extraction_schema_id).toBe(SCHEMA_ID);
+  });
+
+  it("forwards reprocess on updateSource", async () => {
+    const api = policyUpdatesApi();
+    const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
+
+    const source = await client.updateSource({
+      id: SOURCE_ID,
+      extraction_schema_id: SCHEMA_ID,
+      reprocess: true,
+    });
+    expect(source.reprocess_queued).toBe(3);
     expect(api.requests[0]).toMatchObject({
       method: "PATCH",
       path: `/v1/sources/${SOURCE_ID}`,
-      body: { extraction_schema_id: SCHEMA_ID },
+      body: { extraction_schema_id: SCHEMA_ID, reprocess: true },
     });
   });
 

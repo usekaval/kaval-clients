@@ -9,6 +9,8 @@
  * `listBulletins()` for the same information.
  */
 
+import type { WatchedSource } from "./check.js";
+
 /** A customer-defined JSON Schema Kaval extracts structured records against. */
 export interface ExtractionSchema {
   id: string;
@@ -64,6 +66,8 @@ export interface ExtractionRun {
   created_at: string;
   updated_at: string;
   finished_at?: string;
+  reprocess?: true;
+  generation?: number;
 }
 
 /** Request a payer + period extraction run. Requires `policy-update:manage`. */
@@ -170,7 +174,17 @@ export interface SourceVersionSections {
 export interface UpdateSourceInput {
   id: string;
   extraction_schema_id: string | null;
+  /** Fill-missing re-extract versions that already ran under another schema. Default false. */
+  reprocess?: boolean;
 }
+
+/**
+ * Bind result. Same watched source as today, plus `reprocess_queued` when `reprocess: true`
+ * was accepted (how many versions were queued for fill-missing extract).
+ */
+export type UpdateSourceResult = WatchedSource & {
+  reprocess_queued?: number;
+};
 
 /* ------------------------------ webhook payloads ----------------------------- */
 
@@ -197,6 +211,16 @@ export interface PolicyUpdateDocumentEvent {
     workspace_id: string;
     payer_id: string;
     source_version_id: string;
+    /**
+     * `new` — first content version. `updated` — later version of the same source.
+     * `schema_changed` — same PDF extracted again under a newly bound schema.
+     * Match `schema_changed` to the earlier extract on `source_version_id` (also
+     * envelope `correlation_id`).
+     */
+    source_change?: "new" | "updated" | "schema_changed";
+    source_id?: string;
+    /** Present only when this extract is a later generation of the same identity. */
+    generation?: number;
     /** Durable Kaval source-version PDF URL — not a short-lived parser studio link. */
     pdf_href: string;
     content_href: string;
