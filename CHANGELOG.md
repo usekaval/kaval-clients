@@ -2,7 +2,7 @@
 
 All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
-## Unreleased
+## 0.7.6 — released 2026-08-13
 
 ### Added
 
