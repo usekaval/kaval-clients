@@ -552,7 +552,7 @@ async function safe(fn: () => Promise<unknown>, signal?: AbortSignal) {
  * `report_outcome` closes the calibration loop. `verify` is a deprecated pilot alias.
  */
 export function createMcpServer(client: Kaval): McpServer {
-  const server = new McpServer({ name: "kaval", version: "0.7.5" });
+  const server = new McpServer({ name: "kaval", version: "0.7.6" });
   const api = client as unknown as WireClient;
 
   server.registerTool(
@@ -1191,7 +1191,11 @@ export function createMcpServer(client: Kaval): McpServer {
     },
     async ({ run_id, expand }, { signal }) =>
       safe(
-        () => api.getPolicyUpdate(run_id, { signal, ...(expand ? { expand } : {}) }),
+        () =>
+          api.getPolicyUpdate(run_id, {
+            signal,
+            ...(expand ? { expand } : {}),
+          }),
         signal,
       ),
   );
