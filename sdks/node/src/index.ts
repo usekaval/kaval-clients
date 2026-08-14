@@ -1194,6 +1194,14 @@ export class Kaval {
     return extraction_run;
   }
 
+  getPolicyUpdate(
+    runId: string,
+    options: RequestOptions & PolicyUpdateGetOptions & { expand: "document" },
+  ): Promise<PolicyUpdateGetResult>;
+  getPolicyUpdate(
+    runId: string,
+    options?: RequestOptions & PolicyUpdateGetOptions,
+  ): Promise<ExtractionRun>;
   async getPolicyUpdate(
     runId: string,
     options?: RequestOptions & PolicyUpdateGetOptions,
