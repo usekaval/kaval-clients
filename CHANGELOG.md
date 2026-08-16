@@ -4,8 +4,6 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ## Unreleased
 
-## 0.7.7 — released 2026-08-16
-
 ### Breaking
 
 - **Extraction-domain rename.** Client methods, MCP tools, webhook events, and the create-subscription
