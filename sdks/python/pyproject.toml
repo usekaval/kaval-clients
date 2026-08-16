@@ -1,6 +1,6 @@
 [project]
 name = "kaval"
-version = "0.7.6"
+version = "0.7.7"
 description = "Python SDK for Kaval: verify the facts an AI agent's action relies on and enforce time-bounded signed proofs (ALLOW, REVIEW, BLOCK)."
 readme = "README.md"
 requires-python = ">=3.10"
