@@ -66,7 +66,7 @@ function policyUpdatesFetch(): {
           },
         ],
       };
-    } else if (parsed.pathname === "/v1/policy-updates" && method === "POST") {
+    } else if (parsed.pathname === "/v1/extraction-runs" && method === "POST") {
       response = {
         extraction_run: {
           id: RUN_ID,
@@ -81,7 +81,7 @@ function policyUpdatesFetch(): {
           updated_at: "2026-08-06T00:00:00.000Z",
         },
       };
-    } else if (parsed.pathname === `/v1/policy-updates/${RUN_ID}`) {
+    } else if (parsed.pathname === `/v1/extraction-runs/${RUN_ID}`) {
       response = {
         extraction_run: {
           id: RUN_ID,
@@ -96,9 +96,9 @@ function policyUpdatesFetch(): {
           updated_at: "2026-08-06T00:00:05.000Z",
         },
       };
-    } else if (parsed.pathname === "/v1/policy-updates") {
+    } else if (parsed.pathname === "/v1/extraction-runs") {
       response = { extraction_runs: [], next_cursor: null };
-    } else if (parsed.pathname === "/v1/policy-update-packages") {
+    } else if (parsed.pathname === "/v1/extraction-packages") {
       response = {
         packages: [
           {
@@ -221,9 +221,9 @@ describe("MCP policy-update tools", () => {
 
     const created = parseToolText(
       await client.callTool({
-        name: "create_policy_update",
+        name: "create_extraction_run",
         arguments: {
-          payer_id: "aetna",
+          publisher_id: "aetna",
           period: "2026-08",
           extraction_schema_id: SCHEMA_ID,
           idempotency_key: "run-operation-001",
@@ -232,14 +232,14 @@ describe("MCP policy-update tools", () => {
     ) as { status?: string };
     expect(created.status).toBe("processing");
     expect(harness.requests[0]).toMatchObject({
-      path: "/v1/policy-updates",
+      path: "/v1/extraction-runs",
       method: "POST",
       key: "run-operation-001",
     });
 
     const fetched = parseToolText(
       await client.callTool({
-        name: "get_policy_update",
+        name: "get_extraction_run",
         arguments: { run_id: RUN_ID },
       }),
     ) as { status?: string };
@@ -247,9 +247,9 @@ describe("MCP policy-update tools", () => {
 
     const listed = parseToolText(
       await client.callTool({
-        name: "list_policy_updates",
+        name: "list_extraction_runs",
         arguments: {
-          payer_id: "aetna",
+          publisher_id: "aetna",
           period_from: "2026-01",
           period_to: "2026-08",
         },
@@ -258,7 +258,7 @@ describe("MCP policy-update tools", () => {
     expect(listed.extraction_runs).toEqual([]);
     expect(listed.next_cursor).toBeNull();
     expect(harness.requests.at(-1)).toMatchObject({
-      path: "/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
+      path: "/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
       method: "GET",
     });
   });
@@ -269,13 +269,13 @@ describe("MCP policy-update tools", () => {
 
     const listed = parseToolText(
       await client.callTool({
-        name: "list_policy_update_packages",
-        arguments: { payer_id: "aetna", period: "2026-08" },
+        name: "list_extraction_packages",
+        arguments: { publisher_id: "aetna", period: "2026-08" },
       }),
-    ) as { policy_update_packages?: Array<{ id?: string }> };
-    expect(listed.policy_update_packages?.[0]?.id).toBe(PACKAGE_ID);
+    ) as { extraction_packages?: Array<{ id?: string }> };
+    expect(listed.extraction_packages?.[0]?.id).toBe(PACKAGE_ID);
     expect(harness.requests[0]).toMatchObject({
-      path: "/v1/policy-update-packages?payer_id=aetna&period=2026-08",
+      path: "/v1/extraction-packages?publisher_id=aetna&period=2026-08",
       method: "GET",
     });
   });
@@ -364,7 +364,7 @@ describe("MCP policy-update tools", () => {
     const client = await connect(harness.fetch);
 
     const badPeriod = await client.callTool({
-      name: "create_policy_update",
+      name: "create_extraction_run",
       arguments: {
         payer_id: "aetna",
         period: "2026-8",

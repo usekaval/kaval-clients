@@ -1,11 +1,11 @@
 /**
- * Types for the policy-update pipeline: extraction schemas, per-payer extraction runs
- * ("policy updates"), the monthly package they roll up into, and the `policy_update.*` webhook
- * payloads delivered against a `policy_update` subscription.
+ * Types for the extraction pipeline: extraction schemas, per-publisher extraction runs
+ * (the product still calls these Updates), the package they roll up into, and the
+ * `extraction.*` webhook payloads delivered against an `extraction` subscription.
  *
- * This is the Luminai loop: bind an `ExtractionSchema` to a watched source (or a whole payer),
- * let Kaval extract structured records from what it reads, and get `policy_update.document` /
- * `policy_update.monthly_package` webhooks as documents land — instead of polling
+ * This is the Luminai loop: bind an `ExtractionSchema` to a watched source (or a whole publisher),
+ * let Kaval extract structured records from what it reads, and get `extraction.document` /
+ * `extraction.package` webhooks as documents land — instead of polling
  * `listBulletins()` for the same information.
  */
 
@@ -32,17 +32,18 @@ export type ExtractionRunStatus =
 export type ExtractionRunScope = "document" | "payer_period";
 
 /**
- * One extraction attempt — either against a single document (`scope: "document"`, the basis of a
- * `policy_update.document` webhook) or a payer + period rollup (`scope: "payer_period"`, created
- * by `createPolicyUpdate()`). This IS "a policy update": the API calls it `extraction_run` on the
- * wire because the same row backs both scopes.
+ * One extraction attempt — either against a single document (`scope: "document"`, the basis of an
+ * `extraction.document` webhook) or a publisher + period rollup (`scope: "payer_period"`, created
+ * by `createExtractionRun()`). The product still calls this an Update.
  */
 export interface ExtractionRun {
   id: string;
   workspace_id: string;
   scope: ExtractionRunScope;
   source_version_id?: string;
-  /** Stable payer slug (e.g. `aetna`). Prefer `result.payer_name` for display. */
+  /** Stable publisher slug (e.g. `aetna`). Prefer `result.payer_name` for display. */
+  publisher_id?: string;
+  /** Still accepted on the wire for one release if a host has not flipped the field. */
   payer_id?: string;
   /**
    * Publication / newsletter month `YYYY-MM`.
@@ -70,16 +71,16 @@ export interface ExtractionRun {
   generation?: number;
 }
 
-/** Request a payer + period extraction run. Requires `policy-update:manage`. */
-export interface CreatePolicyUpdateInput {
-  payer_id: string;
+/** Request a publisher + period extraction run. Requires `policy-update:manage`. */
+export interface CreateExtractionRunInput {
+  publisher_id: string;
   /** Publication / newsletter month `YYYY-MM`. */
   period: string;
   extraction_schema_id: string;
 }
 
-export interface PolicyUpdateListOptions {
-  payer_id?: string;
+export interface ExtractionRunListOptions {
+  publisher_id?: string;
   /** Inclusive YYYY-MM lower bound on run `period`. Optional alone or with `period_to`. */
   period_from?: string;
   /** Inclusive YYYY-MM upper bound on run `period`. Optional alone or with `period_from`. */
@@ -94,40 +95,42 @@ export interface PolicyUpdateListOptions {
   expand?: "document";
 }
 
-export interface PolicyUpdateListPage {
+export interface ExtractionRunListPage {
   extraction_runs: ExtractionRun[];
   /** Present when `expand: "document"` — same length/order as `extraction_runs`. */
-  documents?: Array<PolicyUpdateDocumentEvent["data"] | null>;
+  documents?: Array<ExtractionDocumentEvent["data"] | null>;
   next_cursor: string | null;
 }
 
-export interface PolicyUpdateGetOptions {
+export interface ExtractionRunGetOptions {
   expand?: "document";
 }
 
-export interface PolicyUpdateGetResult {
+export interface ExtractionRunGetResult {
   extraction_run: ExtractionRun;
-  document?: PolicyUpdateDocumentEvent["data"] | null;
+  document?: ExtractionDocumentEvent["data"] | null;
 }
 
-export type PolicyUpdatePackageStatus = "ready" | "partial";
+export type ExtractionPackageStatus = "ready" | "partial";
 
-/** The monthly rollup of every payer/period extraction into one PDF + manifest. */
-export interface PolicyUpdatePackage {
+/** The monthly rollup of every publisher/period extraction into one PDF + manifest. */
+export interface ExtractionPackage {
   id: string;
   workspace_id: string;
-  payer_id: string;
+  publisher_id: string;
+  /** Still accepted on the wire for one release if a host has not flipped the field. */
+  payer_id?: string;
   /** Publication / newsletter month `YYYY-MM`. */
   period: string;
-  status: PolicyUpdatePackageStatus;
+  status: ExtractionPackageStatus;
   pdf_href: string;
   pdf_sha256?: string;
   manifest: Record<string, unknown>;
   built_at: string;
 }
 
-export interface PolicyUpdatePackageListOptions {
-  payer_id?: string;
+export interface ExtractionPackageListOptions {
+  publisher_id?: string;
   period?: string;
 }
 
@@ -137,7 +140,7 @@ export interface SourceVersionContent {
 }
 
 /** Normalized [0, 1] bounding box on a PDF page (from Parse layout at ingest). */
-export interface PolicyUpdateBbox {
+export interface ExtractionBbox {
   left: number;
   top: number;
   width: number;
@@ -145,7 +148,7 @@ export interface PolicyUpdateBbox {
 }
 
 /** One heading-bounded slice of a source version's canonical markdown. */
-export interface PolicyUpdateDocumentSection {
+export interface ExtractionDocumentSection {
   index: number;
   heading: string;
   start_offset: number;
@@ -154,20 +157,20 @@ export interface PolicyUpdateDocumentSection {
   /** 1-indexed page when Parse layout was stored for this version. */
   page?: number;
   /** Normalized [0, 1] bbox on `page` when available. */
-  bbox?: PolicyUpdateBbox;
+  bbox?: ExtractionBbox;
 }
 
 /** Locates one extracted record in the source PDF via its section + layout. */
-export interface PolicyUpdateRecordEvidence {
+export interface ExtractionRecordEvidence {
   section_index: number;
   page: number;
-  bbox: PolicyUpdateBbox;
+  bbox: ExtractionBbox;
   block_ids?: string[];
 }
 
 /** `GET /v1/source-versions/:id/content?format=sections`. */
 export interface SourceVersionSections {
-  sections: PolicyUpdateDocumentSection[];
+  sections: ExtractionDocumentSection[];
 }
 
 /** `PATCH /v1/sources/:id` — bind (or unbind, with `null`) the extraction schema a source runs. */
@@ -188,20 +191,19 @@ export type UpdateSourceResult = WatchedSource & {
 
 /* ------------------------------ webhook payloads ----------------------------- */
 
-export const POLICY_UPDATE_DOCUMENT_EVENT_TYPE = "policy_update.document";
-export const POLICY_UPDATE_MONTHLY_PACKAGE_EVENT_TYPE =
-  "policy_update.monthly_package";
-export const POLICY_UPDATE_EVENT_TYPES = [
-  POLICY_UPDATE_DOCUMENT_EVENT_TYPE,
-  POLICY_UPDATE_MONTHLY_PACKAGE_EVENT_TYPE,
+export const EXTRACTION_DOCUMENT_EVENT_TYPE = "extraction.document";
+export const EXTRACTION_PACKAGE_EVENT_TYPE = "extraction.package";
+export const EXTRACTION_EVENT_TYPES = [
+  EXTRACTION_DOCUMENT_EVENT_TYPE,
+  EXTRACTION_PACKAGE_EVENT_TYPE,
 ] as const;
-export type PolicyUpdateEventType = (typeof POLICY_UPDATE_EVENT_TYPES)[number];
+export type ExtractionEventType = (typeof EXTRACTION_EVENT_TYPES)[number];
 
-/** The body of an inbound `policy_update.document` webhook. */
-export interface PolicyUpdateDocumentEvent {
+/** The body of an inbound `extraction.document` webhook. */
+export interface ExtractionDocumentEvent {
   specversion: "1.0";
   id: string;
-  type: typeof POLICY_UPDATE_DOCUMENT_EVENT_TYPE;
+  type: typeof EXTRACTION_DOCUMENT_EVENT_TYPE;
   source: string;
   subject: string;
   time: string;
@@ -209,7 +211,9 @@ export interface PolicyUpdateDocumentEvent {
   sequence: number;
   data: {
     workspace_id: string;
-    payer_id: string;
+    publisher_id: string;
+    /** Still accepted on the wire for one release if a host has not flipped the field. */
+    payer_id?: string;
     source_version_id: string;
     /**
      * `new` — first content version. `updated` — later version of the same source.
@@ -224,23 +228,23 @@ export interface PolicyUpdateDocumentEvent {
     /** Durable Kaval source-version PDF URL — not a short-lived parser studio link. */
     pdf_href: string;
     content_href: string;
-    sections: PolicyUpdateDocumentSection[];
+    sections: ExtractionDocumentSection[];
     extraction_run: ExtractionRun;
     /** Present when a schema was bound; absent for content-only delivery. */
     extraction?: {
       records: unknown[];
       run_href: string;
       /** Parallel to `records`; empty array when a record has no locatable section. */
-      record_evidence?: PolicyUpdateRecordEvidence[][];
+      record_evidence?: ExtractionRecordEvidence[][];
     };
   };
 }
 
-/** The body of an inbound `policy_update.monthly_package` webhook. */
-export interface PolicyUpdateMonthlyPackageEvent {
+/** The body of an inbound `extraction.package` webhook. */
+export interface ExtractionPackageEvent {
   specversion: "1.0";
   id: string;
-  type: typeof POLICY_UPDATE_MONTHLY_PACKAGE_EVENT_TYPE;
+  type: typeof EXTRACTION_PACKAGE_EVENT_TYPE;
   source: string;
   subject: string;
   time: string;
@@ -248,9 +252,9 @@ export interface PolicyUpdateMonthlyPackageEvent {
   sequence: number;
   data: {
     workspace_id: string;
-    package: PolicyUpdatePackage;
+    package: ExtractionPackage;
   };
 }
 
-export type PolicyUpdateWebhookEvent =
-  PolicyUpdateDocumentEvent | PolicyUpdateMonthlyPackageEvent;
+export type ExtractionWebhookEvent =
+  ExtractionDocumentEvent | ExtractionPackageEvent;

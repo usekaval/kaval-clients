@@ -6,7 +6,7 @@
  *
  * The primary loop for payer-policy monitoring: register a source with `addSource()`, bind an
  * `ExtractionSchema` to it (`createExtractionSchema()` + `updateSource()`), and subscribe to
- * `policy_update.*` webhooks with `subscribePolicyUpdates()` so structured records and monthly
+ * `extraction.*` webhooks with `subscribeExtractions()` so structured records and monthly
  * packages are pushed to you as documents land. `check()` is the other half of the product: before
  * an agent acts, send the action and get ALLOW, REVIEW, or BLOCK with a signed receipt.
  */
@@ -37,22 +37,22 @@ import type {
   VerifyResponse,
 } from "./proof.js";
 import type {
+  CreateExtractionRunInput,
   CreateExtractionSchemaInput,
-  CreatePolicyUpdateInput,
+  ExtractionPackage,
+  ExtractionPackageListOptions,
   ExtractionRun,
+  ExtractionRunGetOptions,
+  ExtractionRunGetResult,
+  ExtractionRunListOptions,
+  ExtractionRunListPage,
   ExtractionSchema,
-  PolicyUpdateGetOptions,
-  PolicyUpdateGetResult,
-  PolicyUpdateListOptions,
-  PolicyUpdateListPage,
-  PolicyUpdatePackage,
-  PolicyUpdatePackageListOptions,
   SourceVersionContent,
   SourceVersionSections,
   UpdateSourceInput,
   UpdateSourceResult,
-} from "./policy-updates.js";
-import { POLICY_UPDATE_EVENT_TYPES } from "./policy-updates.js";
+} from "./extractions.js";
+import { EXTRACTION_EVENT_TYPES } from "./extractions.js";
 import type {
   BulletinExtractionAttemptDetailResponse,
   BulletinExtractionAttemptListOptions,
@@ -95,7 +95,7 @@ import {
 export type * from "./proof.js";
 export type * from "./check.js";
 export type * from "./portfolio.js";
-export type * from "./policy-updates.js";
+export type * from "./extractions.js";
 export {
   DEFAULT_CHECK_MAX_WAIT_MS,
   FACT_STATE_DELTA_EVENT_TYPE,
@@ -114,10 +114,10 @@ export {
   MAX_PORTFOLIO_PAGE_SIZE,
 } from "./portfolio.js";
 export {
-  POLICY_UPDATE_DOCUMENT_EVENT_TYPE,
-  POLICY_UPDATE_EVENT_TYPES,
-  POLICY_UPDATE_MONTHLY_PACKAGE_EVENT_TYPE,
-} from "./policy-updates.js";
+  EXTRACTION_DOCUMENT_EVENT_TYPE,
+  EXTRACTION_EVENT_TYPES,
+  EXTRACTION_PACKAGE_EVENT_TYPE,
+} from "./extractions.js";
 
 export type OutcomeKind =
   | "current_later_contradicted"
@@ -744,9 +744,9 @@ export class Kaval {
   }
 
   /**
-   * Soft-deprecated: bulletins are the free-text predecessor of the policy-update pipeline. Prefer
+   * Soft-deprecated: bulletins are the free-text predecessor of the extraction pipeline. Prefer
    * binding an `ExtractionSchema` to the source (`createExtractionSchema()` + `updateSource()`)
-   * and reading `getPolicyUpdate()` / `policy_update.document` webhooks for structured records.
+   * and reading `getExtractionRun()` / `extraction.document` webhooks for structured records.
    * This method keeps working.
    */
   async getBulletin(
@@ -763,8 +763,8 @@ export class Kaval {
   }
 
   /**
-   * Soft-deprecated: prefer `listPolicyUpdates()` / `listPolicyUpdatePackages()` against a bound
-   * `ExtractionSchema`, or subscribe to `policy_update.*` webhooks with `subscribePolicyUpdates()`.
+   * Soft-deprecated: prefer `listExtractionRuns()` / `listExtractionPackages()` against a bound
+   * `ExtractionSchema`, or subscribe to `extraction.*` webhooks with `subscribeExtractions()`.
    * This method keeps working.
    */
   listBulletins(
@@ -799,7 +799,7 @@ export class Kaval {
    * List the customer-readable extraction lifecycle for structured bulletins.
    *
    * Soft-deprecated: this reports on the free-text bulletin pipeline. For schema-bound
-   * extraction, `getPolicyUpdate()` / `listPolicyUpdates()` report the same lifecycle
+   * extraction, `getExtractionRun()` / `listExtractionRuns()` report the same lifecycle
    * (`processing` → `succeeded` / `review_required` / `failed`) against structured records.
    */
   listBulletinExtractionAttempts(
@@ -1071,7 +1071,7 @@ export class Kaval {
   /**
    * Bind (or, with `extraction_schema_id: null`, unbind) the extraction schema a source runs.
    * Every document that lands on this source afterward is extracted against the bound schema and
-   * delivered as a `policy_update.document` webhook. Pass `reprocess: true` to also fill-missing
+   * delivered as an `extraction.document` webhook. Pass `reprocess: true` to also fill-missing
    * re-extract versions that already ran under another schema (`source_change: schema_changed`;
    * join on `source_version_id`). The returned source includes `reprocess_queued` when reprocess
    * was accepted. Requires `policy-update:manage`.
@@ -1102,7 +1102,7 @@ export class Kaval {
 
   /**
    * The canonical text Kaval extracted from one source version — the same text a
-   * `policy_update.document` webhook and any bound extraction run were computed from. Pass
+   * `extraction.document` webhook and any bound extraction run were computed from. Pass
    * `format: "sections"` to get it pre-split into heading-bounded sections instead of one string.
    */
   getSourceVersionContent(
@@ -1133,12 +1133,12 @@ export class Kaval {
     return this.request("POST", "/v1/events", input, options);
   }
 
-  /* ------------------------------ policy updates ------------------------------ */
+  /* ------------------------------ extraction runs ------------------------------ */
 
   /**
    * Register a JSON Schema Kaval extracts structured records against. Bind the returned schema's
-   * `id` to a source with `updateSource()`, or pass it directly to `createPolicyUpdate()` for a
-   * one-off payer + period run. Requires `policy-update:manage`.
+   * `id` to a source with `updateSource()`, or pass it directly to `createExtractionRun()` for a
+   * one-off publisher + period run. Requires `policy-update:manage`.
    */
   async createExtractionSchema(
     input: CreateExtractionSchemaInput,
@@ -1177,44 +1177,44 @@ export class Kaval {
   }
 
   /**
-   * Request a payer + period extraction run against a bound schema — the one-off counterpart to
+   * Request a publisher + period extraction run against a bound schema — the one-off counterpart to
    * letting a source's bound schema run automatically as documents land. Requires
-   * `policy-update:manage`. Answers `202` with the run in `processing`; poll `getPolicyUpdate()`
-   * or wait for its `policy_update.document` webhook.
+   * `policy-update:manage`. Answers `202` with the run in `processing`; poll `getExtractionRun()`
+   * or wait for its `extraction.document` webhook.
    */
-  async createPolicyUpdate(
-    input: CreatePolicyUpdateInput,
+  async createExtractionRun(
+    input: CreateExtractionRunInput,
     options?: RequestOptions,
   ): Promise<ExtractionRun> {
     const { extraction_run } = await this.request<{
       extraction_run: ExtractionRun;
-    }>("POST", "/v1/policy-updates", input, options, {
+    }>("POST", "/v1/extraction-runs", input, options, {
       "idempotency-key": options?.idempotencyKey ?? generatedIdempotencyKey(),
     });
     return extraction_run;
   }
 
-  getPolicyUpdate(
+  getExtractionRun(
     runId: string,
-    options: RequestOptions & PolicyUpdateGetOptions & { expand: "document" },
-  ): Promise<PolicyUpdateGetResult>;
-  getPolicyUpdate(
+    options: RequestOptions & ExtractionRunGetOptions & { expand: "document" },
+  ): Promise<ExtractionRunGetResult>;
+  getExtractionRun(
     runId: string,
-    options?: RequestOptions & PolicyUpdateGetOptions,
+    options?: RequestOptions & ExtractionRunGetOptions,
   ): Promise<ExtractionRun>;
-  async getPolicyUpdate(
+  async getExtractionRun(
     runId: string,
-    options?: RequestOptions & PolicyUpdateGetOptions,
-  ): Promise<ExtractionRun | PolicyUpdateGetResult> {
+    options?: RequestOptions & ExtractionRunGetOptions,
+  ): Promise<ExtractionRun | ExtractionRunGetResult> {
     const query = new URLSearchParams();
     if (options?.expand !== undefined) query.set("expand", options.expand);
     const search = query.toString();
     const response = await this.request<{
       extraction_run: ExtractionRun;
-      document?: PolicyUpdateGetResult["document"];
+      document?: ExtractionRunGetResult["document"];
     }>(
       "GET",
-      `/v1/policy-updates/${encodeId(runId)}${search === "" ? "" : `?${search}`}`,
+      `/v1/extraction-runs/${encodeId(runId)}${search === "" ? "" : `?${search}`}`,
       undefined,
       options,
     );
@@ -1227,12 +1227,12 @@ export class Kaval {
     return response.extraction_run;
   }
 
-  listPolicyUpdates(
-    options?: RequestOptions & PolicyUpdateListOptions,
-  ): Promise<PolicyUpdateListPage> {
+  listExtractionRuns(
+    options?: RequestOptions & ExtractionRunListOptions,
+  ): Promise<ExtractionRunListPage> {
     const query = new URLSearchParams();
-    if (options?.payer_id !== undefined)
-      query.set("payer_id", options.payer_id);
+    if (options?.publisher_id !== undefined)
+      query.set("publisher_id", options.publisher_id);
     if (options?.period_from !== undefined)
       query.set("period_from", options.period_from);
     if (options?.period_to !== undefined)
@@ -1245,9 +1245,9 @@ export class Kaval {
     if (options?.limit !== undefined) query.set("limit", String(options.limit));
     if (options?.expand !== undefined) query.set("expand", options.expand);
     const search = query.toString();
-    return this.request<PolicyUpdateListPage>(
+    return this.request<ExtractionRunListPage>(
       "GET",
-      `/v1/policy-updates${search === "" ? "" : `?${search}`}`,
+      `/v1/extraction-runs${search === "" ? "" : `?${search}`}`,
       undefined,
       options,
     ).then((response) => ({
@@ -1259,32 +1259,32 @@ export class Kaval {
     }));
   }
 
-  async getPolicyUpdatePackage(
+  async getExtractionPackage(
     packageId: string,
     options?: RequestOptions,
-  ): Promise<PolicyUpdatePackage> {
+  ): Promise<ExtractionPackage> {
     const { package: pkg } = await this.request<{
-      package: PolicyUpdatePackage;
+      package: ExtractionPackage;
     }>(
       "GET",
-      `/v1/policy-update-packages/${encodeId(packageId)}`,
+      `/v1/extraction-packages/${encodeId(packageId)}`,
       undefined,
       options,
     );
     return pkg;
   }
 
-  listPolicyUpdatePackages(
-    options?: RequestOptions & PolicyUpdatePackageListOptions,
-  ): Promise<PolicyUpdatePackage[]> {
+  listExtractionPackages(
+    options?: RequestOptions & ExtractionPackageListOptions,
+  ): Promise<ExtractionPackage[]> {
     const query = new URLSearchParams();
-    if (options?.payer_id !== undefined)
-      query.set("payer_id", options.payer_id);
+    if (options?.publisher_id !== undefined)
+      query.set("publisher_id", options.publisher_id);
     if (options?.period !== undefined) query.set("period", options.period);
     const search = query.toString();
-    return this.request<{ packages: PolicyUpdatePackage[] }>(
+    return this.request<{ packages: ExtractionPackage[] }>(
       "GET",
-      `/v1/policy-update-packages${search === "" ? "" : `?${search}`}`,
+      `/v1/extraction-packages${search === "" ? "" : `?${search}`}`,
       undefined,
       options,
     ).then((response) => response.packages);
@@ -1317,13 +1317,13 @@ export class Kaval {
   }
 
   /**
-   * Subscribe to `policy_update.document` and `policy_update.monthly_package` — structured records
-   * and monthly PDF rollups pushed as they land, instead of polling `listPolicyUpdates()` or
+   * Subscribe to `extraction.document` and `extraction.package` — structured records
+   * and monthly PDF rollups pushed as they land, instead of polling `listExtractionRuns()` or
    * `listBulletins()` for the same information. `external_scope_ids` filters deliveries to the
-   * payer/scope keys you care about. The returned `webhook_verification` is the only time the
+   * publisher/scope keys you care about. The returned `webhook_verification` is the only time the
    * signing secret is shown; store it and verify every inbound delivery with it.
    */
-  subscribePolicyUpdates(
+  subscribeExtractions(
     input: { callback_url: string } & Omit<
       CreateWebhookInput,
       "subscription_kind" | "event_types" | "callback_url"
@@ -1333,8 +1333,8 @@ export class Kaval {
     return this.createWebhook(
       {
         ...input,
-        subscription_kind: "policy_update",
-        event_types: [...POLICY_UPDATE_EVENT_TYPES],
+        subscription_kind: "extraction",
+        event_types: [...EXTRACTION_EVENT_TYPES],
       },
       options,
     );

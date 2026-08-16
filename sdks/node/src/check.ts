@@ -360,13 +360,23 @@ export interface SourceEventResult {
 /* ---------------------------------- webhooks -------------------------------- */
 
 export type WebhookSubscriptionKind =
-  "belief_integrity" | "monitor" | "fact_state" | "policy_update";
+  | "belief_integrity"
+  | "monitor"
+  | "fact_state"
+  | "extraction"
+  | "policy_update";
+
+/** Kinds accepted on create. Existing `policy_update` subscriptions still appear on list. */
+export type CreateWebhookSubscriptionKind = Exclude<
+  WebhookSubscriptionKind,
+  "policy_update"
+>;
 
 /** The only event a `fact_state` subscription accepts. */
 export const FACT_STATE_DELTA_EVENT_TYPE = "fact_state.delta";
 
 export interface CreateWebhookInput {
-  subscription_kind: WebhookSubscriptionKind;
+  subscription_kind: CreateWebhookSubscriptionKind;
   /** Must be https. */
   callback_url: string;
   event_types: string[];

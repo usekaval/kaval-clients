@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Kaval, POLICY_UPDATE_EVENT_TYPES } from "../src/index.js";
+import { EXTRACTION_EVENT_TYPES, Kaval } from "../src/index.js";
 
 interface RequestRecord {
   method: string;
@@ -8,7 +8,7 @@ interface RequestRecord {
   body: unknown;
 }
 
-function policyUpdatesApi(): {
+function extractionApi(): {
   fetch: typeof fetch;
   requests: RequestRecord[];
 } {
@@ -63,14 +63,14 @@ function policyUpdatesApi(): {
       };
     } else if (url.pathname === "/v1/extraction-schemas") {
       payload = { extraction_schemas: [] };
-    } else if (url.pathname === "/v1/policy-updates" && method === "POST") {
+    } else if (url.pathname === "/v1/extraction-runs" && method === "POST") {
       status = 202;
       payload = {
         extraction_run: {
           id: runId,
           workspace_id: "ws_1",
           scope: "payer_period",
-          payer_id: "aetna",
+          publisher_id: "aetna",
           period: "2026-08",
           extraction_schema_id: schemaId,
           status: "processing",
@@ -79,13 +79,13 @@ function policyUpdatesApi(): {
           updated_at: "2026-08-06T00:00:00.000Z",
         },
       };
-    } else if (url.pathname === `/v1/policy-updates/${runId}`) {
+    } else if (url.pathname === `/v1/extraction-runs/${runId}`) {
       payload = {
         extraction_run: {
           id: runId,
           workspace_id: "ws_1",
           scope: "payer_period",
-          payer_id: "aetna",
+          publisher_id: "aetna",
           period: "2026-08",
           extraction_schema_id: schemaId,
           status: "succeeded",
@@ -94,14 +94,14 @@ function policyUpdatesApi(): {
           updated_at: "2026-08-06T00:00:05.000Z",
         },
       };
-    } else if (url.pathname === "/v1/policy-updates") {
+    } else if (url.pathname === "/v1/extraction-runs") {
       payload = { extraction_runs: [], next_cursor: null };
-    } else if (url.pathname === `/v1/policy-update-packages/${packageId}`) {
+    } else if (url.pathname === `/v1/extraction-packages/${packageId}`) {
       payload = {
         package: {
           id: packageId,
           workspace_id: "ws_1",
-          payer_id: "aetna",
+          publisher_id: "aetna",
           period: "2026-08",
           status: "ready",
           pdf_href: "https://api.usekaval.com/v1/packages/1.pdf",
@@ -109,7 +109,7 @@ function policyUpdatesApi(): {
           built_at: "2026-08-06T00:00:10.000Z",
         },
       };
-    } else if (url.pathname === "/v1/policy-update-packages") {
+    } else if (url.pathname === "/v1/extraction-packages") {
       payload = { packages: [] };
     } else if (
       url.pathname === `/v1/sources/${sourceId}` &&
@@ -174,9 +174,9 @@ const PACKAGE_ID = "30000000-0000-4000-8000-000000000001";
 const SOURCE_ID = "40000000-0000-4000-8000-000000000001";
 const VERSION_ID = "50000000-0000-4000-8000-000000000001";
 
-describe("policy-update client surface", () => {
+describe("extraction client surface", () => {
   it("creates and reads extraction schemas with an idempotency key on the mutation", async () => {
-    const api = policyUpdatesApi();
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
     const created = await client.createExtractionSchema({
@@ -197,12 +197,12 @@ describe("policy-update client surface", () => {
     expect(schemas).toEqual([]);
   });
 
-  it("creates a payer + period run and lists/gets it", async () => {
-    const api = policyUpdatesApi();
+  it("creates a publisher + period run and lists/gets it", async () => {
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
-    const run = await client.createPolicyUpdate({
-      payer_id: "aetna",
+    const run = await client.createExtractionRun({
+      publisher_id: "aetna",
       period: "2026-08",
       extraction_schema_id: SCHEMA_ID,
     });
@@ -210,15 +210,16 @@ describe("policy-update client surface", () => {
     expect(run.status).toBe("processing");
     const createRequest = api.requests.find(
       (request) =>
-        request.method === "POST" && request.path === "/v1/policy-updates",
+        request.method === "POST" && request.path === "/v1/extraction-runs",
     );
     expect(createRequest?.key).toBeTruthy();
+    expect(createRequest?.body).toMatchObject({ publisher_id: "aetna" });
 
-    const fetched = await client.getPolicyUpdate(RUN_ID);
+    const fetched = await client.getExtractionRun(RUN_ID);
     expect(fetched.status).toBe("succeeded");
 
-    const runs = await client.listPolicyUpdates({
-      payer_id: "aetna",
+    const runs = await client.listExtractionRuns({
+      publisher_id: "aetna",
       period_from: "2026-01",
       period_to: "2026-08",
     });
@@ -226,13 +227,13 @@ describe("policy-update client surface", () => {
     const listRequest = api.requests.find(
       (request) =>
         request.method === "GET" &&
-        request.path.startsWith("/v1/policy-updates?"),
+        request.path.startsWith("/v1/extraction-runs?"),
     );
     expect(listRequest?.path).toBe(
-      "/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
+      "/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
     );
 
-    const expanded = await client.listPolicyUpdates({
+    const expanded = await client.listExtractionRuns({
       expand: "document",
       updated_since: "2026-03-01T00:00:00.000Z",
       limit: 25,
@@ -247,20 +248,20 @@ describe("policy-update client surface", () => {
   });
 
   it("gets and lists monthly packages", async () => {
-    const api = policyUpdatesApi();
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
-    const pkg = await client.getPolicyUpdatePackage(PACKAGE_ID);
+    const pkg = await client.getExtractionPackage(PACKAGE_ID);
     expect(pkg.status).toBe("ready");
 
-    const packages = await client.listPolicyUpdatePackages({
-      payer_id: "aetna",
+    const packages = await client.listExtractionPackages({
+      publisher_id: "aetna",
     });
     expect(packages).toEqual([]);
   });
 
   it("binds an extraction schema to a source with updateSource", async () => {
-    const api = policyUpdatesApi();
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
     const source = await client.updateSource({
@@ -271,7 +272,7 @@ describe("policy-update client surface", () => {
   });
 
   it("forwards reprocess on updateSource", async () => {
-    const api = policyUpdatesApi();
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
     const source = await client.updateSource({
@@ -288,7 +289,7 @@ describe("policy-update client surface", () => {
   });
 
   it("reads source version content as text or as sections", async () => {
-    const api = policyUpdatesApi();
+    const api = extractionApi();
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
     const content = await client.getSourceVersionContent(VERSION_ID);
@@ -309,8 +310,8 @@ describe("policy-update client surface", () => {
     });
   });
 
-  it("subscribes to both policy_update event types", async () => {
-    const api = policyUpdatesApi();
+  it("subscribes to both extraction event types", async () => {
+    const api = extractionApi();
     const client = new Kaval({
       apiKey: "kv_live_test",
       fetch: (async (input: string | URL | Request, init?: RequestInit) => {
@@ -332,12 +333,16 @@ describe("policy-update client surface", () => {
       }) as unknown as typeof fetch,
     });
 
-    const result = await client.subscribePolicyUpdates({
+    const result = await client.subscribeExtractions({
       callback_url: "https://example.com/webhooks/kaval",
     });
     expect(result.subscription).toMatchObject({
-      subscription_kind: "policy_update",
-      event_types: [...POLICY_UPDATE_EVENT_TYPES],
+      subscription_kind: "extraction",
+      event_types: [...EXTRACTION_EVENT_TYPES],
     });
+    expect(EXTRACTION_EVENT_TYPES).toEqual([
+      "extraction.document",
+      "extraction.package",
+    ]);
   });
 });

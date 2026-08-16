@@ -253,7 +253,7 @@ const trainingStatusInput = z.enum([
 const trainingUseInput = z.enum(["approved", "withheld"]);
 
 const payerIdInput = z.string().trim().min(1).max(256);
-/** `YYYY-MM`, the granularity every policy-update run and package is keyed by. */
+/** `YYYY-MM`, the granularity every extraction run and package is keyed by. */
 const periodInput = z
   .string()
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/u, "must be a YYYY-MM period");
@@ -423,15 +423,18 @@ interface WireClient {
     options?: TransportOptions,
   ): Promise<unknown>;
   listExtractionSchemas(options?: TransportOptions): Promise<unknown>;
-  createPolicyUpdate(
+  createExtractionRun(
     input: Record<string, unknown>,
     options?: TransportOptions,
   ): Promise<unknown>;
-  getPolicyUpdate(runId: string, options?: TransportOptions): Promise<unknown>;
-  listPolicyUpdates(
+  getExtractionRun(
+    runId: string,
     options?: TransportOptions & Record<string, unknown>,
   ): Promise<unknown>;
-  listPolicyUpdatePackages(
+  listExtractionRuns(
+    options?: TransportOptions & Record<string, unknown>,
+  ): Promise<unknown>;
+  listExtractionPackages(
     options?: TransportOptions & Record<string, unknown>,
   ): Promise<unknown>;
   updateSource(
@@ -883,7 +886,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_bulletins",
     {
       description:
-        "List structured payer bulletins. Filter by payer, policy, code, publisher date, or review status. Dates are publisher-stated dates only. Prefer create_extraction_schema + create_policy_update (or update_source's extraction_schema_id binding) for new integrations — this free-text pipeline still works but is not receiving new record types.",
+        "List structured payer bulletins. Filter by payer, policy, code, publisher date, or review status. Dates are publisher-stated dates only. Prefer create_extraction_schema + create_extraction_run (or update_source's extraction_schema_id binding) for new integrations — this free-text pipeline still works but is not receiving new record types.",
       inputSchema: {
         source_id: uuidInput.optional(),
         payer_id: z.string().trim().min(1).max(256).optional(),
@@ -947,7 +950,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "get_bulletin",
     {
       description:
-        "Get one structured bulletin by source-version id. Each field includes its status and exact evidence when available. Prefer get_policy_update for new integrations — this free-text pipeline still works but is not receiving new record types.",
+        "Get one structured bulletin by source-version id. Each field includes its status and exact evidence when available. Prefer get_extraction_run for new integrations — this free-text pipeline still works but is not receiving new record types.",
       inputSchema: { source_version_id: uuidInput },
     },
     async ({ source_version_id }, { signal }) =>
@@ -958,7 +961,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_bulletin_extraction_attempts",
     {
       description:
-        "List customer-readable bulletin extraction status. Filter by source or lifecycle state. This tool cannot requeue work. Prefer list_policy_updates for new integrations — this free-text pipeline still works but is not receiving new record types.",
+        "List customer-readable bulletin extraction status. Filter by source or lifecycle state. This tool cannot requeue work. Prefer list_extraction_runs for new integrations — this free-text pipeline still works but is not receiving new record types.",
       inputSchema: z
         .object({
           source_id: uuidInput.optional(),
@@ -989,7 +992,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "get_bulletin_extraction_attempt",
     {
       description:
-        "Get one customer-readable bulletin extraction attempt by source-version id. This tool cannot requeue work. Prefer get_policy_update for new integrations — this free-text pipeline still works but is not receiving new record types.",
+        "Get one customer-readable bulletin extraction attempt by source-version id. This tool cannot requeue work. Prefer get_extraction_run for new integrations — this free-text pipeline still works but is not receiving new record types.",
       inputSchema: z.object({ source_version_id: uuidInput }).strict(),
     },
     async ({ source_version_id }, { signal }) =>
@@ -1118,7 +1121,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "create_extraction_schema",
     {
       description:
-        "Register a JSON Schema Kaval extracts structured records against. Bind the returned schema's id to a source with update_source so every document that lands on it afterward is extracted automatically and delivered as a policy_update.document webhook, or pass it directly to create_policy_update for a one-off payer + period run. This is the schema-bound successor to list_bulletins' free-text extraction. Requires policy-update:manage.",
+        "Register a JSON Schema Kaval extracts structured records against. Bind the returned schema's id to a source with update_source so every document that lands on it afterward is extracted automatically and delivered as an extraction.document webhook, or pass it directly to create_extraction_run for a one-off publisher + period run. This is the schema-bound successor to list_bulletins' free-text extraction. Requires policy-update:manage.",
       inputSchema: {
         name: z.string().trim().min(1).max(512),
         json_schema: jsonSchemaInput.describe(
@@ -1155,13 +1158,13 @@ export function createMcpServer(client: Kaval): McpServer {
   );
 
   server.registerTool(
-    "create_policy_update",
+    "create_extraction_run",
     {
       description:
-        "Request a one-off payer + period extraction run against a bound extraction schema, instead of waiting for the next document to land on a watched source. Requires policy-update:manage. Answers with the run in status 'processing' — poll get_policy_update or wait for its policy_update.document webhook.",
+        "Request a one-off publisher + period extraction run against a bound extraction schema, instead of waiting for the next document to land on a watched source. Requires policy-update:manage. Answers with the run in status 'processing' — poll get_extraction_run or wait for its extraction.document webhook.",
       inputSchema: {
-        payer_id: payerIdInput.describe(
-          "the payer this run extracts records for",
+        publisher_id: payerIdInput.describe(
+          "the publisher this run extracts records for",
         ),
         period: periodInput.describe("the YYYY-MM period to extract"),
         extraction_schema_id: uuidInput,
@@ -1171,7 +1174,7 @@ export function createMcpServer(client: Kaval): McpServer {
     async ({ idempotency_key, ...input }, { signal }) =>
       safe(
         () =>
-          api.createPolicyUpdate(
+          api.createExtractionRun(
             input,
             transportOptions(idempotency_key, signal),
           ),
@@ -1180,10 +1183,10 @@ export function createMcpServer(client: Kaval): McpServer {
   );
 
   server.registerTool(
-    "get_policy_update",
+    "get_extraction_run",
     {
       description:
-        "Get one extraction run ('policy update') by id — its status (processing | retry | succeeded | review_required | failed), the schema it ran against, and its extracted result once it succeeds. Pass expand='document' for the same PolicyUpdateDocumentData payload the policy_update.document webhook delivers (pdf_href, content_href, sections, optional extraction.records / record_evidence).",
+        "Get one extraction run (an Update) by id — its status (processing | retry | succeeded | review_required | failed), the schema it ran against, and its extracted result once it succeeds. Pass expand='document' for the same document payload the extraction.document webhook delivers (pdf_href, content_href, sections, optional extraction.records / record_evidence).",
       inputSchema: {
         run_id: uuidInput,
         expand: z.literal("document").optional(),
@@ -1192,7 +1195,7 @@ export function createMcpServer(client: Kaval): McpServer {
     async ({ run_id, expand }, { signal }) =>
       safe(
         () =>
-          api.getPolicyUpdate(run_id, {
+          api.getExtractionRun(run_id, {
             signal,
             ...(expand ? { expand } : {}),
           }),
@@ -1201,12 +1204,12 @@ export function createMcpServer(client: Kaval): McpServer {
   );
 
   server.registerTool(
-    "list_policy_updates",
+    "list_extraction_runs",
     {
       description:
-        "List extraction runs ('policy updates'). Filter by payer_id, optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
+        "List extraction runs (Updates). Filter by publisher_id, optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
       inputSchema: {
-        payer_id: payerIdInput.optional(),
+        publisher_id: payerIdInput.optional(),
         period_from: periodInput.optional(),
         period_to: periodInput.optional(),
         created_since: z.string().datetime({ offset: true }).optional(),
@@ -1217,23 +1220,23 @@ export function createMcpServer(client: Kaval): McpServer {
       },
     },
     async (args, { signal }) =>
-      safe(async () => api.listPolicyUpdates({ signal, ...args }), signal),
+      safe(async () => api.listExtractionRuns({ signal, ...args }), signal),
   );
 
   server.registerTool(
-    "list_policy_update_packages",
+    "list_extraction_packages",
     {
       description:
-        "List the monthly PDF + manifest rollups every payer/period's extraction runs are packaged into, optionally filtered by payer and/or YYYY-MM period. Each row's pdf_href is GET /v1/policy-update-packages/{id}/document — follow the 302 to a short-lived signed PDF (this tool does not download bytes).",
+        "List the monthly PDF + manifest rollups every publisher/period's extraction runs are packaged into, optionally filtered by publisher and/or YYYY-MM period. Each row's pdf_href is GET /v1/extraction-packages/{id}/document — follow the 302 to a short-lived signed PDF (this tool does not download bytes).",
       inputSchema: {
-        payer_id: payerIdInput.optional(),
+        publisher_id: payerIdInput.optional(),
         period: periodInput.optional(),
       },
     },
     async (args, { signal }) =>
       safe(
         async () => ({
-          policy_update_packages: await api.listPolicyUpdatePackages({
+          extraction_packages: await api.listExtractionPackages({
             signal,
             ...args,
           }),
@@ -1359,7 +1362,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "update_source",
     {
       description:
-        "Bind (or unbind) an extraction schema on a watched source, by the `id` add_source or list_sources returned. Once bound, every document that lands on the source is run through create_extraction_schema's schema automatically and delivered as a policy_update.document webhook — no more polling create_policy_update per period. Pass extraction_schema_id: null to unbind. Pass reprocess: true to also fill-missing re-extract versions that already ran under another schema (webhook source_change is schema_changed; join on source_version_id). Requires policy-update:manage.",
+        "Bind (or unbind) an extraction schema on a watched source, by the `id` add_source or list_sources returned. Once bound, every document that lands on the source is run through create_extraction_schema's schema automatically and delivered as an extraction.document webhook — no more polling create_extraction_run per period. Pass extraction_schema_id: null to unbind. Pass reprocess: true to also fill-missing re-extract versions that already ran under another schema (webhook source_change is schema_changed; join on source_version_id). Requires policy-update:manage.",
       inputSchema: {
         id: z
           .string()
@@ -1388,7 +1391,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "get_source_version_content",
     {
       description:
-        "Fetch the captured content of one fetched version of a watched source, by the `source_version_id` a policy_update.document webhook or an extraction run names. Defaults to the raw canonical text; pass format:'sections' to get it pre-split into the same sections the sectionizer feeds extraction runs.",
+        "Fetch the captured content of one fetched version of a watched source, by the `source_version_id` an extraction.document webhook or an extraction run names. Defaults to the raw canonical text; pass format:'sections' to get it pre-split into the same sections the sectionizer feeds extraction runs.",
       inputSchema: {
         source_version_id: uuidInput,
         format: z.enum(["sections"]).optional(),

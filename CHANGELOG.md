@@ -2,6 +2,27 @@
 
 All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
+## Unreleased
+
+## 0.7.7 — released 2026-08-16
+
+### Breaking
+
+- **Extraction-domain rename.** Client methods, MCP tools, webhook events, and the create-subscription
+  kind no longer use the `policy_update` / `PolicyUpdate` names:
+  - Node: `createExtractionRun`, `getExtractionRun`, `listExtractionRuns`, `getExtractionPackage`,
+    `listExtractionPackages`, `subscribeExtractions`.
+  - Python: `create_extraction_run`, `get_extraction_run`, `list_extraction_runs`,
+    `get_extraction_package`, `list_extraction_packages`, `subscribe_extractions`.
+  - MCP: `create_extraction_run`, `get_extraction_run`, `list_extraction_runs`,
+    `list_extraction_packages`.
+  - Events: `extraction.document`, `extraction.package` (were `policy_update.document`,
+    `policy_update.monthly_package`).
+  - Webhook create kind: `extraction`. `policy_update` is rejected on create; existing
+    `policy_update` subscriptions still appear on list.
+  - Create/filter field is `publisher_id`. Response payloads may still include `payer_id` as a
+    retired alias if a host has not flipped the field.
+
 ## 0.7.6 — released 2026-08-13
 
 ### Added
