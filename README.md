@@ -2,7 +2,7 @@
 
 Open-source client libraries for [Kaval](https://usekaval.com). **Register the payers and pages you
 care about once. Kaval watches them, extracts structured records against a schema you define, and
-delivers each policy update — plus a monthly PDF + manifest rollup — as a webhook the moment it
+delivers each extraction — plus a monthly PDF + manifest rollup — as a webhook the moment it
 lands, instead of you polling or re-researching it.** `check()` is the second half: before an agent
 acts on one of those facts, send Kaval the action and it answers `ALLOW`, `REVIEW`, or `BLOCK` with a
 signed receipt.
@@ -23,7 +23,7 @@ The 0.7.3 portfolio methods are available in the Node SDK and MCP server.
 
 The Python SDK does not yet expose contracts, fact imports, bulletins, or training review.
 
-## Sources → Policy updates → Webhooks
+## Sources → Extractions → Webhooks
 
 The primary loop needs no LLM call and no polling loop of your own:
 
@@ -52,9 +52,9 @@ await kaval.updateSource({ id: source.id, extraction_schema_id: schema.id });
 // reprocess: true also re-extracts versions that already ran under another schema
 // (webhook source_change: "schema_changed"; join on source_version_id).
 
-// 3. Get pushed a policy_update.document webhook every time a new bulletin lands, already
-//    extracted against the schema — or poll listPolicyUpdates() for the same records.
-const { webhook_verification } = await kaval.subscribePolicyUpdates({
+// 3. Get pushed an extraction.document webhook every time a new bulletin lands, already
+//    extracted against the schema — or poll listExtractionRuns() for the same records.
+const { webhook_verification } = await kaval.subscribeExtractions({
   callback_url: "https://your-app.example.com/hooks/kaval",
 });
 ```
@@ -78,21 +78,21 @@ schema = kaval.create_extraction_schema(
 kaval.update_source(source["id"], extraction_schema_id=schema["id"])
 # reprocess=True also re-extracts versions that already ran under another schema
 # (webhook source_change="schema_changed"; join on source_version_id).
-kaval.subscribe_policy_updates(callback_url="https://your-app.example.com/hooks/kaval")
+kaval.subscribe_extractions(callback_url="https://your-app.example.com/hooks/kaval")
 ```
 
-No schema, or want a one-off pull instead of waiting for the next document? `createPolicyUpdate({
-payer_id, period, extraction_schema_id })` requests a single payer + period run on demand;
-`getPolicyUpdate()` / `listPolicyUpdates()` report its lifecycle
+No schema, or want a one-off pull instead of waiting for the next document? `createExtractionRun({
+publisher_id, period, extraction_schema_id })` requests a single publisher + period run on demand;
+`getExtractionRun()` / `listExtractionRuns()` report its lifecycle
 (`processing` → `retry` → `succeeded` / `review_required` / `failed`), and
-`listPolicyUpdatePackages()` lists the monthly PDF + manifest rollup each payer/period is packaged
+`listExtractionPackages()` lists the monthly PDF + manifest rollup each publisher/period is packaged
 into. This is the schema-bound successor to the free-text bulletin methods (`listBulletins()`,
 `getBulletin()`), which are soft-deprecated but keep working.
 
 `check()` is what you call next, right before an agent acts on a fact this loop delivered — it is
 covered in the next section.
 
-> **0.6 was a breaking release.** Nine MCP tools collapsed to seven (before later portfolio/policy-update tools landed). The whole verification
+> **0.6 was a breaking release.** Nine MCP tools collapsed to seven (before later portfolio/extraction tools landed). The whole verification
 > surface collapsed to one call. Every removed endpoint now answers a structured
 > `410 {"error":"tool_retired","replacement":"/v1/check"}`, and the clients translate that into an
 > error that names `check` by name. See [Migrating from 0.5](#migrating-from-05).
@@ -265,8 +265,8 @@ emits the delta webhook. Checks that land mid-re-evaluation honestly return `REV
 KAVAL_API_KEY=kv_live_… npx -y @usekaval/mcp
 ```
 
-Thirty-one tools run over stdio. They cover checks, receipts, contracts, bulk imports, policy
-updates (extraction schemas, runs, monthly packages), the soft-deprecated bulletin tools, training
+Thirty-one tools run over stdio. They cover checks, receipts, contracts, bulk imports,
+extractions (extraction schemas, runs, monthly packages), the soft-deprecated bulletin tools, training
 review, watched sources, outcomes, and the deprecated `verify` alias.
 
 Eleven JSON resources expose contract issues, bulletin extraction status, and the prior read models.
@@ -322,7 +322,7 @@ returns `{"error":"tool_retired"}` with a message telling the agent to call `che
 
 ## Idempotency
 
-Contract mutations, fact imports, extraction schema creation, policy-update run creation, deprecated
+Contract mutations, fact imports, extraction schema creation, extraction-run creation, deprecated
 `verify()`, and webhook creation carry an `Idempotency-Key`. The client generates a key when you omit
 one.
 

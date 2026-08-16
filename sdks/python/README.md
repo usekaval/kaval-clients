@@ -1,11 +1,11 @@
 # kaval (Python SDK)
 
-The primary loop: **watch a source → extract structured records against a schema → get pushed a
-`policy_update.*` webhook as documents land.** Register what Kaval should watch with
+The primary loop: **watch a source → extract structured records against a schema → get pushed an
+`extraction.*` webhook as documents land.** Register what Kaval should watch with
 `add_source()`, bind an `ExtractionSchema` to it, and subscribe once — no polling.
 
 ```
-add_source()  →  create_extraction_schema() + update_source()  →  subscribe_policy_updates()
+add_source()  →  create_extraction_schema() + update_source()  →  subscribe_extractions()
    (watch)               (what to extract)                            (get pushed the result)
 ```
 
@@ -126,14 +126,15 @@ publishes it, and the only recovery once a working plan breaks against a redesig
 answers `202 {source_id, job_id, created}` — the job is queued, not finished, and `created` is
 `False` when an open job for that source absorbed the request.
 
-## Policy updates
+## Extractions
 
 Register a JSON Schema and bind it to a source; every document that lands on that source afterward
-is extracted against it and delivered as a `policy_update.document` webhook, with per-payer monthly
-rollups delivered as `policy_update.monthly_package`. On each document event, `extraction_run.period`
+is extracted against it and delivered as an `extraction.document` webhook, with per-publisher monthly
+rollups delivered as `extraction.package`. On each document event, `extraction_run.period`
 is the publication / newsletter month (`YYYY-MM`); sections and `extraction.record_evidence` may
 include normalized `page` / `bbox` for PDF highlighting; `result["payer_name"]` is the human brand
-beside the stable `payer_id` slug.
+beside the stable `publisher_id` slug. Response payloads may still include `payer_id` as a retired
+alias if a host has not flipped the field.
 
 ```python
 schema = kaval.create_extraction_schema(
@@ -154,32 +155,32 @@ kaval.update_source(source["id"], extraction_schema_id=schema["id"])
 # (webhook source_change="schema_changed"; join on source_version_id).
 ```
 
-Prefer a one-off run over waiting for the next document? `create_policy_update()` requests a payer
-+ period extraction run directly against a bound schema:
+Prefer a one-off run over waiting for the next document? `create_extraction_run()` requests a
+publisher + period extraction run directly against a bound schema:
 
 ```python
-run = kaval.create_policy_update(
-    payer_id="aetna", period="2026-08", extraction_schema_id=schema["id"]
+run = kaval.create_extraction_run(
+    publisher_id="aetna", period="2026-08", extraction_schema_id=schema["id"]
 )
-# 202, run["status"] == "processing" — poll get_policy_update(run["id"]) or wait for the webhook.
+# 202, run["status"] == "processing" — poll get_extraction_run(run["id"]) or wait for the webhook.
 
-kaval.list_policy_updates(
-    payer_id="aetna",
+kaval.list_extraction_runs(
+    publisher_id="aetna",
     updated_since="2026-03-01T00:00:00.000Z",
     expand="document",
     limit=50,
 )
-kaval.get_policy_update(run["id"])
+kaval.get_extraction_run(run["id"])
 kaval.list_extraction_schemas()
 kaval.get_extraction_schema(schema["id"])
 ```
 
-Each payer + period's runs roll up into one monthly PDF + manifest:
+Each publisher + period's runs roll up into one monthly PDF + manifest:
 
 ```python
-kaval.list_policy_update_packages(payer_id="aetna", period="2026-08")
-pkg = kaval.get_policy_update_package(pkg_id)
-# pkg["pdf_href"] → GET /v1/policy-update-packages/{id}/document → 302 signed PDF (follow redirects).
+kaval.list_extraction_packages(publisher_id="aetna", period="2026-08")
+pkg = kaval.get_extraction_package(pkg_id)
+# pkg["pdf_href"] → GET /v1/extraction-packages/{id}/document → 302 signed PDF (follow redirects).
 ```
 
 Read the canonical text (or heading-bounded sections) a source version was extracted from,
@@ -190,17 +191,18 @@ content = kaval.get_source_version_content(source_version_id)["content"]
 sections = kaval.get_source_version_content(source_version_id, format="sections")["sections"]
 ```
 
-Subscribe once, the same way as `fact_state.delta`:
+Subscribe once, the same way as `fact_state.delta`. Create uses `subscription_kind: "extraction"`;
+`policy_update` is rejected on create (existing subscriptions still appear on list):
 
 ```python
-subscription = kaval.subscribe_policy_updates(
+subscription = kaval.subscribe_extractions(
     "https://your-app.com/hooks/kaval",
     external_scope_ids=["payer:aetna"],   # optional scope filter
 )
 secret = subscription["webhook_verification"]["secret"]   # shown once — store it now
 ```
 
-`create_extraction_schema()` and `create_policy_update()` require an API key with
+`create_extraction_schema()` and `create_extraction_run()` require an API key with
 `policy-update:manage`; the read methods above accept `policy-update:read` or
 `verification:execute`.
 
@@ -451,8 +453,8 @@ the API says the same operation is still in progress/finalizing; that retry reus
 Ordinary API errors, rate limits, and terminal 5xx responses are never retried. Pass
 `idempotency_key=` when an outer job system needs one logical operation to stay stable, and reuse a
 key only after an ambiguous/no-response failure.
-`create_webhook()` (and `subscribe_fact_state_deltas()` / `subscribe_policy_updates()`),
-`create_extraction_schema()`, and `create_policy_update()` also send an `Idempotency-Key` because
+`create_webhook()` (and `subscribe_fact_state_deltas()` / `subscribe_extractions()`),
+`create_extraction_schema()`, and `create_extraction_run()` also send an `Idempotency-Key` because
 the server requires one; they are never auto-retried.
 
 **Default timeout: 150 seconds** (connect + read), overridable at construction or per call:
@@ -476,9 +478,9 @@ you genuinely want a faster, bounded verdict. `timeout=None` per call means "inh
 `check` · `get_receipt` · `add_source` · `list_sources` · `get_source` · `pause_source` ·
 `resume_source` · `recompile_source` · `delete_source` · `update_source` ·
 `get_source_version_content` · `send_event` · `create_extraction_schema` ·
-`get_extraction_schema` · `list_extraction_schemas` · `create_policy_update` ·
-`get_policy_update` · `list_policy_updates` · `get_policy_update_package` ·
-`list_policy_update_packages` · `subscribe_policy_updates` · `subscribe_fact_state_deltas` ·
+`get_extraction_schema` · `list_extraction_schemas` · `create_extraction_run` ·
+`get_extraction_run` · `list_extraction_runs` · `get_extraction_package` ·
+`list_extraction_packages` · `subscribe_extractions` · `subscribe_fact_state_deltas` ·
 `create_webhook` · `list_webhooks` · `set_webhook_enabled` · `delete_webhook` ·
 `replay_webhook_delivery` · `report_outcome` · `verify` (deprecated) · `health`. Construct with
 `KavalClient(base_url=?, api_key=?, timeout=?)` — `base_url` defaults to

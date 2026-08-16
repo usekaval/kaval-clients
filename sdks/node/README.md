@@ -1,12 +1,12 @@
 # @usekaval/kaval
 
-The primary loop: **watch a source → extract structured records against a schema → get pushed a
-`policy_update.*` webhook as documents land.** Register what Kaval should watch with `addSource()`,
+The primary loop: **watch a source → extract structured records against a schema → get pushed an
+`extraction.*` webhook as documents land.** Register what Kaval should watch with `addSource()`,
 bind an `ExtractionSchema` to it, and subscribe once — no polling, no re-reading a bulletin feed to
 find out what changed.
 
 ```
-addSource()  →  createExtractionSchema() + updateSource()  →  subscribePolicyUpdates()
+addSource()  →  createExtractionSchema() + updateSource()  →  subscribeExtractions()
    (watch)              (what to extract)                       (get pushed the result)
 ```
 
@@ -205,9 +205,9 @@ Use `listBulletins()` for structured bulletin records. Each page can contain 100
 Use `listBulletinExtractionAttempts()` to read extraction status and failures. Use
 `getBulletinExtractionAttempt()` to read one source version. These methods cannot requeue work.
 
-> **Soft-deprecated.** Bulletins are the free-text predecessor of [Policy updates](#policy-updates):
-> bind an `ExtractionSchema` to a source instead and read `listPolicyUpdates()` /
-> `policy_update.document` webhooks for the same information, structured. The bulletin methods keep
+> **Soft-deprecated.** Bulletins are the free-text predecessor of [Extractions](#extractions):
+> bind an `ExtractionSchema` to a source instead and read `listExtractionRuns()` /
+> `extraction.document` webhooks for the same information, structured. The bulletin methods keep
 > working.
 
 Use `listTrainingJobs()` for read-only training status. The SDK does not expose model promotion.
@@ -405,14 +405,15 @@ for it. `recompileSource(id)` re-runs that derivation — it is the recovery pat
 and the way a directly-registered `kind: "url"` source gets a plan at all. It answers `202` with a
 `job_id` because discovery runs on the worker, not in your request.
 
-## Policy updates
+## Extractions
 
 Register a JSON Schema and bind it to a source; every document that lands on that source afterward
-is extracted against it and delivered as a `policy_update.document` webhook, with per-payer monthly
-rollups delivered as `policy_update.monthly_package`. On each document event, `extraction_run.period`
+is extracted against it and delivered as an `extraction.document` webhook, with per-publisher monthly
+rollups delivered as `extraction.package`. On each document event, `extraction_run.period`
 is the publication / newsletter month (`YYYY-MM`); sections and `extraction.record_evidence` may
 include normalized `page` / `bbox` for PDF highlighting; `result.payer_name` is the human brand
-beside the stable `payer_id` slug.
+beside the stable `publisher_id` slug. Response payloads may still include `payer_id` as a retired
+alias if a host has not flipped the field.
 
 ```ts
 const schema = await kaval.createExtractionSchema({
@@ -433,29 +434,29 @@ await kaval.updateSource({ id: source.id, extraction_schema_id: schema.id });
 // (webhook source_change: "schema_changed"; join on source_version_id).
 ```
 
-Prefer a one-off run over waiting for the next document? `createPolicyUpdate()` requests a payer +
-period extraction run directly against a bound schema:
+Prefer a one-off run over waiting for the next document? `createExtractionRun()` requests a
+publisher + period extraction run directly against a bound schema:
 
 ```ts
-const run = await kaval.createPolicyUpdate({
-  payer_id: "aetna",
+const run = await kaval.createExtractionRun({
+  publisher_id: "aetna",
   period: "2026-08",
   extraction_schema_id: schema.id,
 });
-// 202, run.status: "processing" — poll getPolicyUpdate(run.id) or wait for the webhook.
+// 202, run.status: "processing" — poll getExtractionRun(run.id) or wait for the webhook.
 
-await kaval.listPolicyUpdates({ payer_id: "aetna", period: "2026-08" });
-await kaval.getPolicyUpdate(run.id);
+await kaval.listExtractionRuns({ publisher_id: "aetna", period_from: "2026-08", period_to: "2026-08" });
+await kaval.getExtractionRun(run.id);
 await kaval.listExtractionSchemas();
 await kaval.getExtractionSchema(schema.id);
 ```
 
-Each payer + period's runs roll up into one monthly PDF + manifest:
+Each publisher + period's runs roll up into one monthly PDF + manifest:
 
 ```ts
-const packages = await kaval.listPolicyUpdatePackages({ payer_id: "aetna", period: "2026-08" });
-const pkg = await kaval.getPolicyUpdatePackage(packages[0]!.id);
-// pkg.pdf_href → GET /v1/policy-update-packages/{id}/document → 302 signed PDF (follow redirects).
+const packages = await kaval.listExtractionPackages({ publisher_id: "aetna", period: "2026-08" });
+const pkg = await kaval.getExtractionPackage(packages[0]!.id);
+// pkg.pdf_href → GET /v1/extraction-packages/{id}/document → 302 signed PDF (follow redirects).
 ```
 
 Read the canonical text (or heading-bounded sections) a source version was extracted from directly,
@@ -468,17 +469,18 @@ const { sections } = await kaval.getSourceVersionContent(sourceVersionId, {
 });
 ```
 
-Subscribe once, the same way as `fact_state.delta`:
+Subscribe once, the same way as `fact_state.delta`. Create uses `subscription_kind: "extraction"`;
+`policy_update` is rejected on create (existing subscriptions still appear on list):
 
 ```ts
 const { subscription, webhook_verification } =
-  await kaval.subscribePolicyUpdates({
+  await kaval.subscribeExtractions({
     callback_url: "https://your-app.example.com/hooks/kaval",
     external_scope_ids: ["payer:aetna"], // optional scope filter
   });
 ```
 
-`createExtractionSchema()` and `createPolicyUpdate()` require an API key with `policy-update:manage`;
+`createExtractionSchema()` and `createExtractionRun()` require an API key with `policy-update:manage`;
 the read methods above accept `policy-update:read` or `verification:execute`.
 
 ## Close the loop: `fact_state.delta` webhooks
@@ -660,8 +662,8 @@ ordinary API errors, rate limits, or terminal 5xx responses. If both bounded att
 ambiguous, the thrown error exposes `error.idempotencyKey` — pass it back explicitly after your own
 delay to resume the same operation instead of counting a second attempt.
 
-`createWebhook()` (and `subscribeFactStateDeltas()` / `subscribePolicyUpdates()`),
-`createExtractionSchema()`, and `createPolicyUpdate()` send a key because the API requires one; they
+`createWebhook()` (and `subscribeFactStateDeltas()` / `subscribeExtractions()`),
+`createExtractionSchema()`, and `createExtractionRun()` send a key because the API requires one; they
 generate it when you do not supply it.
 
 `check()` deliberately sends none: it is a read of current state, so a retry recomputes rather than
@@ -697,9 +699,9 @@ Status mapping: `current` + `act: true` → `decision: "ALLOW"` with every fact 
 
 `check` · `getReceipt` · `addSource` · `listSources` · `getSource` · `pauseSource` · `resumeSource` ·
 `recompileSource` · `deleteSource` · `updateSource` · `getSourceVersionContent` · `sendEvent` ·
-`createExtractionSchema` · `getExtractionSchema` · `listExtractionSchemas` · `createPolicyUpdate` ·
-`getPolicyUpdate` · `listPolicyUpdates` · `getPolicyUpdatePackage` · `listPolicyUpdatePackages` ·
-`subscribePolicyUpdates` · `subscribeFactStateDeltas` · `createWebhook` · `listWebhooks` ·
+`createExtractionSchema` · `getExtractionSchema` · `listExtractionSchemas` · `createExtractionRun` ·
+`getExtractionRun` · `listExtractionRuns` · `getExtractionPackage` · `listExtractionPackages` ·
+`subscribeExtractions` · `subscribeFactStateDeltas` · `createWebhook` · `listWebhooks` ·
 `setWebhookEnabled` · `deleteWebhook` · `listWebhookDeliveries` · `rotateWebhookSigningKey` ·
 `replayWebhookDelivery` · `reportOutcome` · `verify` (deprecated) · `health`.
 

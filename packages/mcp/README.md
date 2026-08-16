@@ -11,7 +11,7 @@ This package is a **thin client** over the hosted Kaval API. All compilation, gr
 retrieval run server-side, so you bring just a Kaval API key — no model or search keys, no local
 engine.
 
-> **0.6 was a breaking release.** Nine tools became seven (before later portfolio/policy-update tools landed), and everything removed folded into `check`; the
+> **0.6 was a breaking release.** Nine tools became seven (before later portfolio/extraction tools landed), and everything removed folded into `check`; the
 > API answers `410 tool_retired` for the old routes and this server translates that into an error
 > that tells the agent to call `check`. See [Migrating from 0.5](#migrating-from-05).
 
@@ -53,20 +53,20 @@ It speaks MCP over stdio. Point any MCP client at it.
 | `review_contract_claim`             | Approve, correct, or reject one candidate with immutable version control.                                                                                                |
 | `import_facts`                      | Queue up to 400 reviewed facts for warm checks.                                                                                                                          |
 | `get_fact_import`                   | Get one bulk import and every item result.                                                                                                                               |
-| `list_bulletins`                    | **Soft-deprecated** — filter structured bulletins by payer, policy, code, date, or status. Prefer `list_policy_updates` for new integrations.                            |
-| `get_bulletin`                      | **Soft-deprecated** — get one structured bulletin with field evidence. Prefer `get_policy_update`.                                                                       |
-| `list_bulletin_extraction_attempts` | **Soft-deprecated** — list customer-readable bulletin extraction status and failures. Prefer `list_policy_updates`.                                                       |
-| `get_bulletin_extraction_attempt`   | **Soft-deprecated** — get one bulletin extraction attempt by source-version id. Prefer `get_policy_update`.                                                              |
+| `list_bulletins`                    | **Soft-deprecated** — filter structured bulletins by payer, policy, code, date, or status. Prefer `list_extraction_runs` for new integrations.                            |
+| `get_bulletin`                      | **Soft-deprecated** — get one structured bulletin with field evidence. Prefer `get_extraction_run`.                                                                       |
+| `list_bulletin_extraction_attempts` | **Soft-deprecated** — list customer-readable bulletin extraction status and failures. Prefer `list_extraction_runs`.                                                       |
+| `get_bulletin_extraction_attempt`   | **Soft-deprecated** — get one bulletin extraction attempt by source-version id. Prefer `get_extraction_run`.                                                              |
 | `list_training_jobs`                | List read-only training and evaluation status.                                                                                                                           |
 | `get_training_job`                  | Get one read-only training job.                                                                                                                                          |
 | `list_training_feedback`            | List reviewed feedback and its effective training-use state.                                                                                                             |
 | `record_training_feedback_consent`  | Record an explicit training-use decision for one reviewed feedback item.                                                                                                 |
 | `create_extraction_schema`          | Register a JSON Schema Kaval extracts structured records against. Requires `policy-update:manage`.                                                                       |
 | `list_extraction_schemas`           | List the extraction schemas registered in this workspace.                                                                                                                |
-| `create_policy_update`              | Request a one-off payer + period extraction run against a bound schema. Requires `policy-update:manage`.                                                                 |
-| `get_policy_update`                 | Get one extraction run ('policy update') by id — status, schema, and result once it succeeds.                                                                            |
-| `list_policy_updates`               | List extraction runs with payer/period/time filters, cursor pagination, and optional `expand=document` for webhook-parity payloads.                                      |
-| `list_policy_update_packages`       | List the monthly PDF + manifest rollups extraction runs are packaged into.                                                                                               |
+| `create_extraction_run`              | Request a one-off publisher + period extraction run against a bound schema. Requires `policy-update:manage`.                                                             |
+| `get_extraction_run`                 | Get one extraction run by id — status, schema, and result once it succeeds.                                                                                              |
+| `list_extraction_runs`               | List extraction runs with publisher/period/time filters, cursor pagination, and optional `expand=document` for webhook-parity payloads.                                  |
+| `list_extraction_packages`       | List the monthly PDF + manifest rollups extraction runs are packaged into.                                                                                               |
 | `add_source`                        | Tell Kaval what to watch — a URL, a named authority to resolve, or a document you will push in.                                                                          |
 | `list_sources`                      | What Kaval currently watches for this workspace, including sources it auto-registered after a check cited them.                                                          |
 | `remove_source`                     | Stop watching a source and forget it. The only thing that frees a registered/resolved workspace slot (auto-registered citations count there; discovered children use a separate per-parent ceiling). |
@@ -178,18 +178,18 @@ will eventually fill the workspace registered/resolved ceiling, after which new 
 dropped silently and checks that used to be warm go back to researching. Remove what a task
 registered when the task is done.
 
-## Policy updates
+## Extractions
 
 `create_extraction_schema` registers a JSON Schema; bind its `id` to a watched source with
 `update_source({ id, extraction_schema_id })` and every document that lands on that source afterward
 is extracted against the schema automatically — no polling. Pass `reprocess: true` to also
 fill-missing re-extract versions that already ran under another schema; those webhooks carry
 `source_change: "schema_changed"` (join the original extract on `source_version_id`). For a one-off
-run against a payer + period instead of waiting for the next document, call `create_policy_update`
+run against a publisher + period instead of waiting for the next document, call `create_extraction_run`
 directly. Either way,
-`get_policy_update` / `list_policy_updates` report the run's lifecycle
+`get_extraction_run` / `list_extraction_runs` report the run's lifecycle
 (`processing` → `retry` → `succeeded` / `review_required` / `failed`), and
-`list_policy_update_packages` lists the monthly PDF + manifest rollups each payer/period is packaged
+`list_extraction_packages` lists the monthly PDF + manifest rollups each publisher/period is packaged
 into. Each package's `pdf_href` is a durable Kaval URL — `GET` (or `HEAD`) it and follow the **302**
 to a short-lived signed PDF (MCP does not expose a separate download tool; use HTTP with redirects).
 `get_source_version_content` fetches the canonical text (or `format: "sections"`) an extraction run
@@ -203,7 +203,7 @@ keep working.
 
 Watched sources are only half the mechanism: when a source changes, Kaval re-evaluates the dependent
 facts and pushes a `fact_state.delta` webhook naming what flipped; a source with a bound extraction
-schema also pushes `policy_update.document` (and, monthly, `policy_update.monthly_package`) with the
+schema also pushes `extraction.document` (and, monthly, `extraction.package`) with the
 extracted records, optional section `page`/`bbox`, and `record_evidence` for PDF highlighting.
 `extraction_run.period` is the publication / newsletter month. **Those subscriptions are
 deliberately not exposed as MCP tools.** They are
@@ -212,10 +212,11 @@ endpoint and a signing secret that must be stored, which is a deploy-time decisi
 service, not an in-loop choice for an agent that owns neither the endpoint nor the secret.
 
 Configure them once from the SDK (`kaval.subscribeFactStateDeltas({ callback_url })` /
-`kaval.subscribePolicyUpdates({ callback_url })` in Node, `kaval.subscribe_fact_state_deltas(…)` /
-`kaval.subscribe_policy_updates(…)` in Python), from `POST /v1/webhooks` with
-`subscription_kind: "fact_state"` or `"policy_update"`, or from the dashboard. The agent then just
-calls `check` (or reads `list_policy_updates`), and it is already fast and already current.
+`kaval.subscribeExtractions({ callback_url })` in Node, `kaval.subscribe_fact_state_deltas(…)` /
+`kaval.subscribe_extractions(…)` in Python), from `POST /v1/webhooks` with
+`subscription_kind: "fact_state"` or `"extraction"` (`policy_update` is rejected on create), or from
+the dashboard. The agent then just
+calls `check` (or reads `list_extraction_runs`), and it is already fast and already current.
 
 ## Migrating from 0.5
 
@@ -242,7 +243,7 @@ the check tool …","status":410}`.
 ## Idempotency
 
 Contract uploads, contract creation, claim reviews, fact imports, `create_extraction_schema`,
-`create_policy_update`, and `verify` carry operation keys. The server creates a key when you omit
+`create_extraction_run`, and `verify` carry operation keys. The server creates a key when you omit
 one. Reuse the returned key after an ambiguous failure.
 
 `check` deliberately carries none: it is a read of current state, so a retry recomputes rather than

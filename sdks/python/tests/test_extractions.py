@@ -1,7 +1,6 @@
-"""Hermetic contract tests for the policy-update client surface: extraction schemas, payer/period
-extraction runs ("policy updates"), monthly packages, source-schema binding, source-version
-content, and the ``policy_update.*`` webhook subscription — using httpx.MockTransport (no
-network)."""
+"""Hermetic contract tests for the extraction client surface: extraction schemas, publisher/period
+extraction runs, monthly packages, source-schema binding, source-version content, and the
+``extraction.*`` webhook subscription — using httpx.MockTransport (no network)."""
 
 import json
 import uuid
@@ -9,7 +8,7 @@ import uuid
 import httpx
 import pytest
 
-from kaval import POLICY_UPDATE_EVENT_TYPES, KavalClient
+from kaval import EXTRACTION_EVENT_TYPES, KavalClient
 
 SCHEMA = {
     "id": "10000000-0000-4000-8000-000000000001",
@@ -114,7 +113,7 @@ def test_get_and_list_extraction_schemas():
     ]
 
 
-def test_create_policy_update_requests_a_payer_period_run_with_an_idempotency_key():
+def test_create_extraction_run_requests_a_payer_period_run_with_an_idempotency_key():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -125,21 +124,21 @@ def test_create_policy_update_requests_a_payer_period_run_with_an_idempotency_ke
         return httpx.Response(202, json={"extraction_run": RUN})
 
     with make_client(handler) as c:
-        out = c.create_policy_update(
-            payer_id="aetna", period="2026-08", extraction_schema_id=SCHEMA["id"]
+        out = c.create_extraction_run(
+            publisher_id="aetna", period="2026-08", extraction_schema_id=SCHEMA["id"]
         )
 
-    assert (captured["method"], captured["path"]) == ("POST", "/v1/policy-updates")
+    assert (captured["method"], captured["path"]) == ("POST", "/v1/extraction-runs")
     assert str(uuid.UUID(captured["key"])) == captured["key"]
     assert captured["body"] == {
-        "payer_id": "aetna",
+        "publisher_id": "aetna",
         "period": "2026-08",
         "extraction_schema_id": SCHEMA["id"],
     }
     assert out["status"] == "processing"
 
 
-def test_get_and_list_policy_updates():
+def test_get_and_list_extraction_runs():
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -151,15 +150,15 @@ def test_get_and_list_policy_updates():
         )
 
     with make_client(handler) as c:
-        assert c.get_policy_update(RUN["id"]) == RUN
-        assert c.list_policy_updates(
-            payer_id="aetna", period_from="2026-01", period_to="2026-08"
+        assert c.get_extraction_run(RUN["id"]) == RUN
+        assert c.list_extraction_runs(
+            publisher_id="aetna", period_from="2026-01", period_to="2026-08"
         ) == {
             "extraction_runs": [RUN],
             "documents": [None],
             "next_cursor": None,
         }
-        assert c.list_policy_updates(
+        assert c.list_extraction_runs(
             expand="document", updated_since="2026-03-01T00:00:00.000Z", limit=25
         ) == {
             "extraction_runs": [RUN],
@@ -167,17 +166,17 @@ def test_get_and_list_policy_updates():
             "next_cursor": None,
         }
 
-    assert seen[0] == ("GET", f"http://test/v1/policy-updates/{RUN['id']}")
+    assert seen[0] == ("GET", f"http://test/v1/extraction-runs/{RUN['id']}")
     assert seen[1] == (
         "GET",
-        "http://test/v1/policy-updates?payer_id=aetna&period_from=2026-01&period_to=2026-08",
+        "http://test/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
     )
     assert "expand=document" in seen[2][1]
     assert "updated_since=" in seen[2][1]
     assert "limit=25" in seen[2][1]
 
 
-def test_get_and_list_policy_update_packages():
+def test_get_and_list_extraction_packages():
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -187,12 +186,12 @@ def test_get_and_list_policy_update_packages():
         return httpx.Response(200, json={"packages": [PACKAGE]})
 
     with make_client(handler) as c:
-        assert c.get_policy_update_package(PACKAGE["id"]) == PACKAGE
-        assert c.list_policy_update_packages(payer_id="aetna") == [PACKAGE]
+        assert c.get_extraction_package(PACKAGE["id"]) == PACKAGE
+        assert c.list_extraction_packages(publisher_id="aetna") == [PACKAGE]
 
     assert seen == [
-        ("GET", f"http://test/v1/policy-update-packages/{PACKAGE['id']}"),
-        ("GET", "http://test/v1/policy-update-packages?payer_id=aetna"),
+        ("GET", f"http://test/v1/extraction-packages/{PACKAGE['id']}"),
+        ("GET", "http://test/v1/extraction-packages?publisher_id=aetna"),
     ]
 
 
@@ -264,7 +263,7 @@ def test_get_source_version_content_accepts_sections_format():
     assert out["sections"][0]["heading"] == "Prior authorization"
 
 
-def test_subscribe_policy_updates_registers_both_event_types_with_an_idempotency_key():
+def test_subscribe_extractions_registers_both_event_types_with_an_idempotency_key():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -287,7 +286,7 @@ def test_subscribe_policy_updates_registers_both_event_types_with_an_idempotency
         )
 
     with make_client(handler) as c:
-        out = c.subscribe_policy_updates(
+        out = c.subscribe_extractions(
             "https://example.com/hooks/kaval",
             external_scope_ids=["payer:aetna"],
             idempotency_key="webhook-operation-0002",
@@ -296,9 +295,9 @@ def test_subscribe_policy_updates_registers_both_event_types_with_an_idempotency
     assert (captured["method"], captured["path"]) == ("POST", "/v1/webhooks")
     assert captured["key"] == "webhook-operation-0002"
     assert captured["body"] == {
-        "subscription_kind": "policy_update",
+        "subscription_kind": "extraction",
         "callback_url": "https://example.com/hooks/kaval",
-        "event_types": list(POLICY_UPDATE_EVENT_TYPES),
+        "event_types": list(EXTRACTION_EVENT_TYPES),
         "external_scope_ids": ["payer:aetna"],
     }
     assert out["subscription"]["subscription_id"] == "sub_1"
@@ -311,6 +310,6 @@ def test_policy_update_mutations_require_ids_before_network():
         with pytest.raises(ValueError, match="schema_id is required"):
             c.get_extraction_schema("  ")
         with pytest.raises(ValueError, match="run_id is required"):
-            c.get_policy_update("  ")
+            c.get_extraction_run("  ")
         with pytest.raises(ValueError, match="package_id is required"):
-            c.get_policy_update_package("  ")
+            c.get_extraction_package("  ")
