@@ -17,13 +17,14 @@ jobs:
   npm:
     name: Publish Node SDK (@usekaval/kaval) to npm
     # DO NOT ADD A LIVE / STAGING GATE HERE, and do not re-add one to any job below.
-    # There is no staging deployment and there never was: the only Kaval server is production, and
-    # this repository holds exactly one secret (NPM_TOKEN). A gate on staging credentials fails
-    # every release forever, and repointing it at production would write test sources, receipts and
-    # outcome reports into the live product on every tag. This repo publishes on what it can
-    # honestly run by itself — build, lint, typecheck, and the hermetic suites. The real
-    # client↔server contract test belongs in the private repo's CI, which is the only place both
-    # these clients and a real server exist.
+    # There is no staging deployment and there never was: the only Kaval server is production.
+    # Publish jobs use NPM_TOKEN (and PyPI OIDC). KAVAL_DISPATCH_TOKEN is used only AFTER publish,
+    # to tell usekaval/kaval to open a pin-bump PR — it must not gate a registry upload. A gate on
+    # staging credentials fails every release forever, and repointing it at production would write
+    # test sources, receipts and outcome reports into the live product on every tag. This repo
+    # publishes on what it can honestly run by itself — build, lint, typecheck, and the hermetic
+    # suites. The real client↔server contract test belongs in the private repo's CI, which is the
+    # only place both these clients and a real server exist.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -144,3 +145,23 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/publish-mcp-registry.yml
+
+  notify_kaval:
+    name: Dispatch pin bump to usekaval/kaval
+    needs: [npm, mcp, pypi]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: repository_dispatch kaval-clients-released
+        env:
+          GH_TOKEN: ${{ secrets.KAVAL_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api repos/usekaval/kaval/dispatches \
+            -f event_type=kaval-clients-released \
+            -f client_payload="$(jq -nc \
+              --arg version "${GITHUB_REF_NAME}" \
+              --arg sha "${GITHUB_SHA}" \
+              '{version:$version,sha:$sha}')"
