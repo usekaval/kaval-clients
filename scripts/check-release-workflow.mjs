@@ -63,14 +63,15 @@ check("supports workflow_dispatch", /workflow_dispatch:/.test(yaml));
 
 const jobs = jobIds(yaml);
 check(
-  "defines npm, mcp, pypi, and official MCP Registry jobs",
-  jobs.join(",") === "npm,mcp,pypi,mcp_registry",
+  "defines npm, mcp, pypi, official MCP Registry, and kaval pin-dispatch jobs",
+  jobs.join(",") === "npm,mcp,pypi,mcp_registry,notify_kaval",
 );
 
 const npm = jobBlock(yaml, "npm");
 const mcp = jobBlock(yaml, "mcp");
 const pypi = jobBlock(yaml, "pypi");
 const mcpRegistry = jobBlock(yaml, "mcp_registry");
+const notifyKaval = jobBlock(yaml, "notify_kaval");
 
 check(
   "npm job publishes with NPM_TOKEN + provenance",
@@ -96,8 +97,9 @@ check(
 // ---------------------------------------------------------------------------
 // What publishing is gated on.
 //
-// It is NOT gated on a live server, and a future edit must not make it so. This repository has one
-// secret (NPM_TOKEN), there is no staging deployment, and the only real server is production —
+// It is NOT gated on a live server, and a future edit must not make it so. Publish jobs use
+// NPM_TOKEN (and PyPI OIDC). KAVAL_DISPATCH_TOKEN exists only to notify usekaval/kaval AFTER a
+// successful tag publish. There is no staging deployment, and the only real server is production —
 // where a release-time test run would write sources, receipts and outcome reports into the live
 // product on every tag. The public repo gates on what it can honestly run by itself; the real
 // client↔server contract test lives in the private repo's CI, which is the only place both the
@@ -108,8 +110,18 @@ check(
 check(
   "no job gates a publish on a staging credential this repository does not have",
   !/KAVAL_STAGING/.test(yaml) &&
-    !/secrets\.KAVAL_/.test(yaml) &&
-    !/live_gate/.test(yaml),
+    !/live_gate/.test(yaml) &&
+    ![npm, mcp, pypi, mcpRegistry].some((job) => /secrets\.KAVAL_/.test(job)),
+);
+check(
+  "pin-dispatch runs after all three publishes, on tags only, and is not a publish",
+  /needs:\s*\[npm,\s*mcp,\s*pypi\]/.test(notifyKaval) &&
+    /if: startsWith\(github\.ref, 'refs\/tags\/'\)/.test(notifyKaval) &&
+    /secrets\.KAVAL_DISPATCH_TOKEN/.test(notifyKaval) &&
+    /kaval-clients-released/.test(notifyKaval) &&
+    !NPM_PUBLISH_STEP.test(notifyKaval) &&
+    !PNPM_PUBLISH_STEP.test(notifyKaval) &&
+    !/gh-action-pypi-publish/.test(notifyKaval),
 );
 check(
   "no publish is gated on reaching a real server",
