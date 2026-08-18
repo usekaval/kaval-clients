@@ -39,6 +39,7 @@ import type {
 import type {
   CreateExtractionRunInput,
   CreateExtractionSchemaInput,
+  CreatePublisherInput,
   ExtractionPackage,
   ExtractionPackageListOptions,
   ExtractionRun,
@@ -47,8 +48,10 @@ import type {
   ExtractionRunListOptions,
   ExtractionRunListPage,
   ExtractionSchema,
+  Publisher,
   SourceVersionContent,
   SourceVersionSections,
+  UpdatePublisherInput,
   UpdateSourceInput,
   UpdateSourceResult,
 } from "./extractions.js";
@@ -920,16 +923,20 @@ export class Kaval {
   /* --------------------------------- sources --------------------------------- */
 
   /**
-   * Register something for Kaval to watch. A URL is polled conditionally; an `entity` (a plain
+   * Register something for Kaval to watch. Requires `publisher_id` (org publisher UUID from
+   * `listPublishers` / `createPublisher`). A URL is polled conditionally; an `entity` (a plain
    * name plus what you care about, e.g. `{kind:"entity", name:"Aetna", intent:"payer policy
-   * bulletins"}`) is resolved to the URLs that publish it; a `push` source is a document you send
-   * to `sendEvent()`. Facts learned from a watched source stay warm, so checks on them are a
-   * database read.
+   * bulletins", publisher_id}`) is resolved to the URLs that publish it; a `push` source is a
+   * document you send to `sendEvent()`. Facts learned from a watched source stay warm, so checks
+   * on them are a database read.
    */
   addSource(
     input: AddSourceInput,
     options?: RequestOptions,
   ): Promise<AddSourceResult> {
+    if (!input?.publisher_id) {
+      throw new TypeError("addSource requires publisher_id (org publisher UUID)");
+    }
     if (input?.locator === undefined && input?.name === undefined) {
       throw new TypeError(
         "addSource requires locator (or name for kind: 'entity')",
@@ -1069,17 +1076,23 @@ export class Kaval {
   }
 
   /**
-   * Bind (or, with `extraction_schema_id: null`, unbind) the extraction schema a source runs.
-   * Every document that lands on this source afterward is extracted against the bound schema and
-   * delivered as an `extraction.document` webhook. Pass `reprocess: true` to also fill-missing
-   * re-extract versions that already ran under another schema (`source_change: schema_changed`;
-   * join on `source_version_id`). The returned source includes `reprocess_queued` when reprocess
-   * was accepted. Requires `policy-update:manage`.
+   * Bind (or unbind) an extraction schema and/or set `publisher_id` on a source. Provide
+   * `extraction_schema_id` and/or `publisher_id`. Every document that lands afterward uses the
+   * bound schema; pass `reprocess: true` to fill-missing re-extract prior versions (also regroups
+   * under a newly set publisher). Requires `policy-update:manage`.
    */
   async updateSource(
     input: UpdateSourceInput,
     options?: RequestOptions,
   ): Promise<UpdateSourceResult> {
+    if (
+      input.extraction_schema_id === undefined &&
+      input.publisher_id === undefined
+    ) {
+      throw new TypeError(
+        "updateSource requires extraction_schema_id and/or publisher_id",
+      );
+    }
     const { source, reprocess_queued } = await this.request<{
       source: WatchedSource;
       reprocess_queued?: number;
@@ -1087,10 +1100,13 @@ export class Kaval {
       "PATCH",
       `/v1/sources/${encodeId(input.id)}`,
       {
-        extraction_schema_id: input.extraction_schema_id,
-        ...(input.reprocess !== undefined
-          ? { reprocess: input.reprocess }
+        ...(input.extraction_schema_id !== undefined
+          ? { extraction_schema_id: input.extraction_schema_id }
           : {}),
+        ...(input.publisher_id !== undefined
+          ? { publisher_id: input.publisher_id }
+          : {}),
+        ...(input.reprocess !== undefined ? { reprocess: input.reprocess } : {}),
       },
       options,
     );
@@ -1098,6 +1114,53 @@ export class Kaval {
       ...source,
       ...(typeof reprocess_queued === "number" ? { reprocess_queued } : {}),
     };
+  }
+
+  /* -------------------------------- publishers -------------------------------- */
+
+  /** List org-owned publishers for this workspace's billing account. */
+  async listPublishers(
+    options?: RequestOptions,
+  ): Promise<Publisher[]> {
+    const { publishers } = await this.request<{ publishers: Publisher[] }>(
+      "GET",
+      "/v1/publishers",
+      undefined,
+      options,
+    );
+    return publishers;
+  }
+
+  /** Create an org-owned publisher. Duplicate names in the same org return 409. */
+  async createPublisher(
+    input: CreatePublisherInput,
+    options?: RequestOptions,
+  ): Promise<Publisher> {
+    const { publisher } = await this.request<{ publisher: Publisher }>(
+      "POST",
+      "/v1/publishers",
+      input,
+      options,
+      {
+        "idempotency-key": options?.idempotencyKey ?? generatedIdempotencyKey(),
+      },
+    );
+    return publisher;
+  }
+
+  /** Rename an org-owned publisher. Identity (UUID) is unchanged. */
+  async updatePublisher(
+    publisherId: string,
+    input: UpdatePublisherInput,
+    options?: RequestOptions,
+  ): Promise<Publisher> {
+    const { publisher } = await this.request<{ publisher: Publisher }>(
+      "PATCH",
+      `/v1/publishers/${encodeId(publisherId)}`,
+      input,
+      options,
+    );
+    return publisher;
   }
 
   /**

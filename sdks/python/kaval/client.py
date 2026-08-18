@@ -51,6 +51,7 @@ from .models import (
     ExtractionRun,
     ExtractionSchema,
     Materiality,
+    Publisher,
     RecompileSourceResult,
     SourceEventResult,
     SourceVersionContent,
@@ -101,6 +102,8 @@ class NoTimeout:
 #: client's ``timeoutMs: null`` had no Python equivalent. Use it for a cold check you would rather
 #: wait out than lose.
 NO_TIMEOUT = NoTimeout()
+
+_UNSET: Any = object()
 
 #: A per-call deadline: seconds, ``NO_TIMEOUT`` to disable it, or ``None`` to inherit the client's.
 RequestTimeout: TypeAlias = float | NoTimeout | None
@@ -840,6 +843,7 @@ class KavalClient:
         self,
         kind: WatchedSourceKind,
         *,
+        publisher_id: Optional[str] = None,
         locator: Optional[str] = None,
         name: Optional[str] = None,
         label: Optional[str] = None,
@@ -851,17 +855,20 @@ class KavalClient:
     ) -> AddSourceResult:
         """Register something for Kaval to watch.
 
-        A URL is polled conditionally; an ``entity`` (a plain ``name`` plus the ``intent`` you care
-        about, e.g. ``add_source("entity", name="Aetna", intent="payer policy bulletins")``) is
-        resolved to the URLs that publish it; a ``push`` source is a document you send to
-        :meth:`send_event`. Facts learned from a watched source stay warm, so checks on them are a
-        database read.
+        Requires ``publisher_id`` (org publisher UUID from :meth:`list_publishers` /
+        :meth:`create_publisher`). A URL is polled conditionally; an ``entity`` (a plain ``name``
+        plus the ``intent`` you care about) is resolved to the URLs that publish it; a ``push``
+        source is a document you send to :meth:`send_event`. Facts learned from a watched source
+        stay warm, so checks on them are a database read.
         """
+        if not publisher_id:
+            raise ValueError("add_source requires publisher_id (org publisher UUID)")
         if locator is None and name is None:
             raise ValueError("add_source requires locator (or name for kind 'entity')")
         body = _clean(
             {
                 "kind": kind,
+                "publisher_id": publisher_id,
                 "locator": locator,
                 "name": name,
                 "label": label,
@@ -996,24 +1003,27 @@ class KavalClient:
         self,
         source_id: str,
         *,
-        extraction_schema_id: Optional[str],
+        extraction_schema_id: Any = _UNSET,
+        publisher_id: Optional[str] = None,
         reprocess: bool = False,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
     ) -> UpdateSourceResult:
-        """Bind (or, with ``extraction_schema_id=None``, unbind) the extraction schema a source
-        runs.
+        """Bind (or unbind) an extraction schema and/or set ``publisher_id`` on a source.
 
-        Every document that lands on this source afterward is extracted against the bound schema
-        and delivered as a ``policy_update.document`` webhook. Pass ``reprocess=True`` to also
-        fill-missing re-extract versions that already ran under another schema
-        (``source_change: schema_changed``; join on ``source_version_id``). The returned source
-        includes ``reprocess_queued`` when reprocess was accepted. Requires
-        ``policy-update:manage``.
+        Provide ``extraction_schema_id`` and/or ``publisher_id``. Every document that lands afterward
+        uses the bound schema; pass ``reprocess=True`` to fill-missing re-extract prior versions
+        (also regroups under a newly set publisher). Requires ``policy-update:manage``.
         """
-        body: dict[str, Any] = {"extraction_schema_id": extraction_schema_id}
+        body: dict[str, Any] = {}
+        if extraction_schema_id is not _UNSET:
+            body["extraction_schema_id"] = extraction_schema_id
+        if publisher_id is not None:
+            body["publisher_id"] = publisher_id
         if reprocess:
             body["reprocess"] = True
+        if "extraction_schema_id" not in body and "publisher_id" not in body:
+            raise ValueError("provide extraction_schema_id and/or publisher_id")
         payload = self._request(
             "PATCH",
             f"/v1/sources/{_path_segment(source_id, name='source_id')}",
@@ -1026,6 +1036,57 @@ class KavalClient:
         if isinstance(queued, int) and not isinstance(queued, bool):
             return cast(UpdateSourceResult, {**source, "reprocess_queued": queued})
         return source
+
+    def list_publishers(
+        self,
+        *,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> list[Publisher]:
+        """List org-owned publishers for this workspace's billing account."""
+        payload = self._request(
+            "GET",
+            "/v1/publishers",
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast("list[Publisher]", payload["publishers"])
+
+    def create_publisher(
+        self,
+        name: str,
+        *,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Publisher:
+        """Create an org-owned publisher. Duplicate names in the same org return 409."""
+        payload = self._billable_post(
+            "/v1/publishers",
+            {"name": name},
+            idempotency_key=idempotency_key,
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast(Publisher, payload["publisher"])
+
+    def update_publisher(
+        self,
+        publisher_id: str,
+        *,
+        name: str,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> Publisher:
+        """Rename an org-owned publisher. Identity (UUID) is unchanged."""
+        payload = self._request(
+            "PATCH",
+            f"/v1/publishers/{_path_segment(publisher_id, name='publisher_id')}",
+            {"name": name},
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast(Publisher, payload["publisher"])
 
     def get_source_version_content(
         self,

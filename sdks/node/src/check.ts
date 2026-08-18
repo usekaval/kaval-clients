@@ -216,6 +216,10 @@ export interface WatchedSource {
   next_poll_at: string | null;
   last_success_at: string | null;
   content_sha256: string | null;
+  /** Org publisher UUID bound at register / updateSource. */
+  publisher_id?: string | null;
+  /** Inherited publisher when this is a discovered child (own publisher_id may be null). */
+  resolved_publisher_id?: string | null;
   /** The `ExtractionSchema` id bound with `updateSource()`, or null if this source runs unbound. */
   extraction_schema_id?: string | null;
   created_at: IsoTimestamp;
@@ -223,6 +227,8 @@ export interface WatchedSource {
 
 export interface AddSourceInput {
   kind: WatchedSourceKind;
+  /** Org publisher UUID from `listPublishers` / `createPublisher` — required. */
+  publisher_id: string;
   /** The URL, connection id, or push locator. For `kind: "entity"` use `name` instead. */
   locator?: string;
   /** `kind: "entity"` reads more naturally as a name — it is the same locator field. */

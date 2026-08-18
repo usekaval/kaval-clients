@@ -223,7 +223,7 @@ describe("MCP policy-update tools", () => {
       await client.callTool({
         name: "create_extraction_run",
         arguments: {
-          publisher_id: "aetna",
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           extraction_schema_id: SCHEMA_ID,
           idempotency_key: "run-operation-001",
@@ -249,7 +249,7 @@ describe("MCP policy-update tools", () => {
       await client.callTool({
         name: "list_extraction_runs",
         arguments: {
-          publisher_id: "aetna",
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period_from: "2026-01",
           period_to: "2026-08",
         },
@@ -258,7 +258,7 @@ describe("MCP policy-update tools", () => {
     expect(listed.extraction_runs).toEqual([]);
     expect(listed.next_cursor).toBeNull();
     expect(harness.requests.at(-1)).toMatchObject({
-      path: "/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
+      path: "/v1/extraction-runs?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period_from=2026-01&period_to=2026-08",
       method: "GET",
     });
   });
@@ -270,12 +270,12 @@ describe("MCP policy-update tools", () => {
     const listed = parseToolText(
       await client.callTool({
         name: "list_extraction_packages",
-        arguments: { publisher_id: "aetna", period: "2026-08" },
+        arguments: { publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22", period: "2026-08" },
       }),
     ) as { extraction_packages?: Array<{ id?: string }> };
     expect(listed.extraction_packages?.[0]?.id).toBe(PACKAGE_ID);
     expect(harness.requests[0]).toMatchObject({
-      path: "/v1/extraction-packages?publisher_id=aetna&period=2026-08",
+      path: "/v1/extraction-packages?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period=2026-08",
       method: "GET",
     });
   });

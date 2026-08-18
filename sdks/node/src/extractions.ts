@@ -41,10 +41,12 @@ export interface ExtractionRun {
   workspace_id: string;
   scope: ExtractionRunScope;
   source_version_id?: string;
-  /** Stable publisher slug (e.g. `aetna`). Prefer `result.payer_name` for display. */
+  /** Org publisher UUID. Prefer `publisher_name` (when present) for display. */
   publisher_id?: string;
-  /** Still accepted on the wire for one release if a host has not flipped the field. */
+  /** Expand-era echo of `publisher_id` (same uuid string). */
   payer_id?: string;
+  /** Renameable display label from the org publishers table. */
+  publisher_name?: string;
   /**
    * Publication / newsletter month `YYYY-MM`.
    * Not the effective month of an individual PA change — that stays on each record.
@@ -118,8 +120,9 @@ export interface ExtractionPackage {
   id: string;
   workspace_id: string;
   publisher_id: string;
-  /** Still accepted on the wire for one release if a host has not flipped the field. */
+  /** Expand-era echo of `publisher_id` (same uuid string). */
   payer_id?: string;
+  publisher_name?: string;
   /** Publication / newsletter month `YYYY-MM`. */
   period: string;
   status: ExtractionPackageStatus;
@@ -173,11 +176,13 @@ export interface SourceVersionSections {
   sections: ExtractionDocumentSection[];
 }
 
-/** `PATCH /v1/sources/:id` — bind (or unbind, with `null`) the extraction schema a source runs. */
+/** `PATCH /v1/sources/:id` — bind schema and/or set org publisher. Provide at least one. */
 export interface UpdateSourceInput {
   id: string;
-  extraction_schema_id: string | null;
-  /** Fill-missing re-extract versions that already ran under another schema. Default false. */
+  extraction_schema_id?: string | null;
+  /** Org publisher UUID from `listPublishers` / `createPublisher`. */
+  publisher_id?: string;
+  /** Fill-missing re-extract versions that already ran under another schema/publisher. Default false. */
   reprocess?: boolean;
 }
 
@@ -188,6 +193,25 @@ export interface UpdateSourceInput {
 export type UpdateSourceResult = WatchedSource & {
   reprocess_queued?: number;
 };
+
+/* --------------------------------- publishers -------------------------------- */
+
+/** Org-owned publisher. UUID is identity; name is renameable. */
+export interface Publisher {
+  id: string;
+  billing_account_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePublisherInput {
+  name: string;
+}
+
+export interface UpdatePublisherInput {
+  name: string;
+}
 
 /* ------------------------------ webhook payloads ----------------------------- */
 
@@ -212,8 +236,9 @@ export interface ExtractionDocumentEvent {
   data: {
     workspace_id: string;
     publisher_id: string;
-    /** Still accepted on the wire for one release if a host has not flipped the field. */
+    /** Expand-era echo of `publisher_id` (same uuid string). */
     payer_id?: string;
+    publisher_name?: string;
     source_version_id: string;
     /**
      * `new` — first content version. `updated` — later version of the same source.

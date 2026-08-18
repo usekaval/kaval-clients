@@ -125,13 +125,13 @@ def test_create_extraction_run_requests_a_payer_period_run_with_an_idempotency_k
 
     with make_client(handler) as c:
         out = c.create_extraction_run(
-            publisher_id="aetna", period="2026-08", extraction_schema_id=SCHEMA["id"]
+            publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22", period="2026-08", extraction_schema_id=SCHEMA["id"]
         )
 
     assert (captured["method"], captured["path"]) == ("POST", "/v1/extraction-runs")
     assert str(uuid.UUID(captured["key"])) == captured["key"]
     assert captured["body"] == {
-        "publisher_id": "aetna",
+        "publisher_id": "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
         "period": "2026-08",
         "extraction_schema_id": SCHEMA["id"],
     }
@@ -152,7 +152,7 @@ def test_get_and_list_extraction_runs():
     with make_client(handler) as c:
         assert c.get_extraction_run(RUN["id"]) == RUN
         assert c.list_extraction_runs(
-            publisher_id="aetna", period_from="2026-01", period_to="2026-08"
+            publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22", period_from="2026-01", period_to="2026-08"
         ) == {
             "extraction_runs": [RUN],
             "documents": [None],
@@ -169,7 +169,7 @@ def test_get_and_list_extraction_runs():
     assert seen[0] == ("GET", f"http://test/v1/extraction-runs/{RUN['id']}")
     assert seen[1] == (
         "GET",
-        "http://test/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
+        "http://test/v1/extraction-runs?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period_from=2026-01&period_to=2026-08",
     )
     assert "expand=document" in seen[2][1]
     assert "updated_since=" in seen[2][1]
@@ -187,11 +187,11 @@ def test_get_and_list_extraction_packages():
 
     with make_client(handler) as c:
         assert c.get_extraction_package(PACKAGE["id"]) == PACKAGE
-        assert c.list_extraction_packages(publisher_id="aetna") == [PACKAGE]
+        assert c.list_extraction_packages(publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22") == [PACKAGE]
 
     assert seen == [
         ("GET", f"http://test/v1/extraction-packages/{PACKAGE['id']}"),
-        ("GET", "http://test/v1/extraction-packages?publisher_id=aetna"),
+        ("GET", "http://test/v1/extraction-packages?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22"),
     ]
 
 

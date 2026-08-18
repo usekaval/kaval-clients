@@ -29,7 +29,7 @@ import type {
 } from "../check.js";
 
 const HELP = `Usage:
-  kaval sources add <name-or-url> [--intent <text>] [--kind entity|url]
+  kaval sources add <name-or-url> --publisher-id <uuid> [--intent <text>] [--kind entity|url]
   kaval sources ls [--all]
   kaval sources plan <source-id>
   kaval check "<action>" [--origin <url>]... [--fast]
@@ -41,6 +41,7 @@ Environment:
   KAVAL_API_BASE   optional — defaults to https://api.usekaval.com
 
 Options:
+  --publisher-id   org publisher UUID (required for sources add)
   --json           emit the raw response instead of the rendered view
   -h, --help       show this help
 
@@ -144,8 +145,12 @@ async function sourcesAdd(
         ? "url"
         : "entity";
 
+  if (flags.publisherId === undefined) {
+    return usage("sources add needs --publisher-id <uuid>");
+  }
   const result = await kaval.addSource({
     kind,
+    publisher_id: flags.publisherId,
     ...(kind === "entity" ? { name: target } : { locator: target }),
     ...(flags.intent === undefined ? {} : { intent: flags.intent }),
   });
@@ -374,6 +379,7 @@ interface Flags {
   intent?: string;
   kind?: string;
   limit?: string;
+  publisherId?: string;
 }
 
 /** Pull the API's `{error: {code, message}}` out without inventing a shape it might not have. */
@@ -433,6 +439,9 @@ function parse(argv: readonly string[]): { rest: string[]; flags: Flags } {
         break;
       case "--intent":
         flags.intent = argv[(index += 1)];
+        break;
+      case "--publisher-id":
+        flags.publisherId = argv[(index += 1)];
         break;
       case "--as-of":
         // Accepted and ignored, loudly, so anyone with it in a script learns why rather than

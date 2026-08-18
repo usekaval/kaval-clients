@@ -4,6 +4,21 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ## Unreleased
 
+### Breaking
+
+- **`publisher_id` is an org publisher UUID, not a slug.** `addSource` / `add_source` / MCP
+  `add_source` require `publisher_id` (UUID from `listPublishers` / `createPublisher`). Filters
+  and extraction-run create accept the same UUID. Display name is `publisher_name` (renameable);
+  `payer_id` remains an expand-era echo of the UUID string.
+
+### Added
+
+- Publisher CRUD: `listPublishers`, `createPublisher`, `getPublisher`, `updatePublisher`
+  (Node); `list_publishers`, `create_publisher`, `get_publisher`, `update_publisher` (Python);
+  MCP `list_publishers` / `create_publisher`.
+- `updateSource` / `update_source` can set `publisher_id` (with or without a schema bind).
+  `reprocess: true` also regroups already-extracted versions under the new publisher.
+
 ## 0.7.7 — released 2026-08-16
 
 ### Breaking
