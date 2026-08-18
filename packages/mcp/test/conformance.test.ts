@@ -119,6 +119,8 @@ describe("MCP conformance", () => {
       "get_extraction_run",
       "list_extraction_runs",
       "list_extraction_packages",
+      "list_publishers",
+      "create_publisher",
       "add_source",
       "list_sources",
       "remove_source",
@@ -301,6 +303,7 @@ describe("MCP conformance", () => {
       kind: "entity",
       name: "Aetna",
       intent: "payer policy bulletins",
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
       scope_keys: ["plan:HMO"],
     };
     const res = await client.callTool({ name: "add_source", arguments: args });
@@ -323,7 +326,10 @@ describe("MCP conformance", () => {
     }) as typeof fetch);
     const res = await client.callTool({
       name: "add_source",
-      arguments: { kind: "url" },
+      arguments: {
+        kind: "url",
+        publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+      },
     });
     expect((res as { isError?: boolean }).isError).toBe(true);
     expect(parseToolText(res)).toMatchObject({ error: "bad_request" });

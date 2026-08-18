@@ -58,6 +58,8 @@ const EXPECTED_TOOLS = [
   "get_extraction_run",
   "list_extraction_runs",
   "list_extraction_packages",
+  "list_publishers",
+  "create_publisher",
   "add_source",
   "list_sources",
   "remove_source",
@@ -455,6 +457,7 @@ console.log(JSON.stringify({ accepted: result.accepted, verdict: result.decision
     const sourceResult = await client.callTool({
       name: "add_source",
       arguments: {
+        publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
         kind: "entity",
         name: "Aetna",
         intent: "payer policy bulletins",

@@ -109,6 +109,18 @@ describe.skipIf(!apiKey)("MCP live tools (hosted API)", () => {
 
   it("add_source → list_sources → remove_source round-trips through the registry", async () => {
     const client = await connectLiveClient();
+    const created = expectToolOk(
+      await client.callTool({
+        name: "create_publisher",
+        arguments: { name: `Live test ${Date.now()}` },
+      }),
+    );
+    const publisherId = String(
+      (created as { publisher?: { id?: string } }).publisher?.id ?? "",
+    );
+    expect(publisherId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
     const added = expectToolOk(
       await client.callTool({
         name: "add_source",
@@ -116,6 +128,7 @@ describe.skipIf(!apiKey)("MCP live tools (hosted API)", () => {
           kind: "url",
           locator: "https://www.apple.com/leadership/",
           intent: "executive leadership roster",
+          publisher_id: publisherId,
         },
       }),
     );

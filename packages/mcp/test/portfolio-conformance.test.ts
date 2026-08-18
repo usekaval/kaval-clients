@@ -238,6 +238,8 @@ describe("MCP portfolio tools and resources", () => {
       "get_extraction_run",
       "list_extraction_runs",
       "list_extraction_packages",
+      "list_publishers",
+      "create_publisher",
       "add_source",
       "list_sources",
       "remove_source",

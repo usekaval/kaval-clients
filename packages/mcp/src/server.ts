@@ -252,7 +252,8 @@ const trainingStatusInput = z.enum([
 ]);
 const trainingUseInput = z.enum(["approved", "withheld"]);
 
-const payerIdInput = z.string().trim().min(1).max(256);
+/** Org publisher UUID — the product grouping key for sources, runs, and packages. */
+const publisherIdInput = z.string().uuid();
 /** `YYYY-MM`, the granularity every extraction run and package is keyed by. */
 const periodInput = z
   .string()
@@ -357,6 +358,11 @@ interface WireClient {
   ): Promise<unknown>;
   listSources(
     options?: TransportOptions & { includeInactive?: boolean },
+  ): Promise<unknown>;
+  listPublishers(options?: TransportOptions): Promise<unknown>;
+  createPublisher(
+    input: Record<string, unknown>,
+    options?: TransportOptions,
   ): Promise<unknown>;
   deleteSource(sourceId: string, options?: TransportOptions): Promise<unknown>;
   reportOutcome(
@@ -1163,8 +1169,8 @@ export function createMcpServer(client: Kaval): McpServer {
       description:
         "Request a one-off publisher + period extraction run against a bound extraction schema, instead of waiting for the next document to land on a watched source. Requires policy-update:manage. Answers with the run in status 'processing' — poll get_extraction_run or wait for its extraction.document webhook.",
       inputSchema: {
-        publisher_id: payerIdInput.describe(
-          "the publisher this run extracts records for",
+        publisher_id: publisherIdInput.describe(
+          "org publisher UUID (from list_publishers / create_publisher)",
         ),
         period: periodInput.describe("the YYYY-MM period to extract"),
         extraction_schema_id: uuidInput,
@@ -1207,9 +1213,9 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_extraction_runs",
     {
       description:
-        "List extraction runs (Updates). Filter by publisher_id, optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
+        "List extraction runs (Updates). Filter by publisher_id (org publisher UUID), optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
       inputSchema: {
-        publisher_id: payerIdInput.optional(),
+        publisher_id: publisherIdInput.optional(),
         period_from: periodInput.optional(),
         period_to: periodInput.optional(),
         created_since: z.string().datetime({ offset: true }).optional(),
@@ -1227,9 +1233,9 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_extraction_packages",
     {
       description:
-        "List the monthly PDF + manifest rollups every publisher/period's extraction runs are packaged into, optionally filtered by publisher and/or YYYY-MM period. Each row's pdf_href is GET /v1/extraction-packages/{id}/document — follow the 302 to a short-lived signed PDF (this tool does not download bytes).",
+        "List the monthly PDF + manifest rollups every publisher/period's extraction runs are packaged into, optionally filtered by publisher UUID and/or YYYY-MM period. Each row's pdf_href is GET /v1/extraction-packages/{id}/document — follow the 302 to a short-lived signed PDF (this tool does not download bytes).",
       inputSchema: {
-        publisher_id: payerIdInput.optional(),
+        publisher_id: publisherIdInput.optional(),
         period: periodInput.optional(),
       },
     },
@@ -1246,13 +1252,53 @@ export function createMcpServer(client: Kaval): McpServer {
   );
 
   server.registerTool(
+    "list_publishers",
+    {
+      description:
+        "List org-owned publishers for this workspace's billing account. publisher_id on sources and extraction runs is the UUID returned here; rename the display name without changing identity. Create with create_publisher.",
+      inputSchema: {},
+    },
+    async (_args, { signal }) =>
+      safe(async () => api.listPublishers({ signal }), signal),
+  );
+
+  server.registerTool(
+    "create_publisher",
+    {
+      description:
+        "Create an org-owned publisher (renameable display name; UUID is the identity). Pass the returned id as publisher_id to add_source. Duplicate names in the same org return 409.",
+      inputSchema: {
+        name: z
+          .string()
+          .trim()
+          .min(1)
+          .max(128)
+          .describe("display name, e.g. 'Aetna'"),
+        idempotency_key: idempotencyKeyInput,
+      },
+    },
+    async ({ name, idempotency_key }, { signal }) =>
+      safe(
+        () =>
+          api.createPublisher(
+            { name },
+            transportOptions(idempotency_key, signal),
+          ),
+        signal,
+      ),
+  );
+
+  server.registerTool(
     "add_source",
     {
       description:
-        "Tell Kaval what to watch, so later checks are answered from fresh state instead of live research. Registering the NAME of an authority is usually enough: {kind:'entity', name:'Aetna', intent:'payer policy bulletins'} resolves to the pages that publish it and watches them. Use kind:'url' for a specific page, kind:'push' for a document your own system will send in. Kaval polls watched sources adaptively, re-evaluates the facts that depend on them when they change, and (if a fact_state webhook is configured) pushes you a delta naming what flipped. You do not have to call this first — an unregistered source cited by a check is auto-watched — but registering ahead of time is what makes the first check on a fact fast.",
+        "Tell Kaval what to watch, so later checks are answered from fresh state instead of live research. Requires publisher_id (org publisher UUID from list_publishers / create_publisher) so extractions group under that publisher. Registering the NAME of an authority is usually enough: {kind:'entity', name:'Aetna', intent:'payer policy bulletins', publisher_id:'…'} resolves to the pages that publish it and watches them. Use kind:'url' for a specific page, kind:'push' for a document your own system will send in. Kaval polls watched sources adaptively, re-evaluates the facts that depend on them when they change, and (if a fact_state webhook is configured) pushes you a delta naming what flipped. You do not have to call this first — an unregistered source cited by a check is auto-watched — but registering ahead of time is what makes the first check on a fact fast.",
       inputSchema: {
         kind: watchedSourceKindInput.describe(
           "url (a specific page) | entity (a name to resolve) | push (a document you will send to Kaval) | connection (a configured system of record)",
+        ),
+        publisher_id: publisherIdInput.describe(
+          "org publisher UUID from list_publishers / create_publisher — required; runs and monthly packages group by it",
         ),
         locator: z
           .string()
@@ -1362,7 +1408,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "update_source",
     {
       description:
-        "Bind (or unbind) an extraction schema on a watched source, by the `id` add_source or list_sources returned. Once bound, every document that lands on the source is run through create_extraction_schema's schema automatically and delivered as an extraction.document webhook — no more polling create_extraction_run per period. Pass extraction_schema_id: null to unbind. Pass reprocess: true to also fill-missing re-extract versions that already ran under another schema (webhook source_change is schema_changed; join on source_version_id). Requires policy-update:manage.",
+        "Bind (or unbind) an extraction schema and/or set publisher_id on a watched source, by the `id` add_source or list_sources returned. Provide extraction_schema_id and/or publisher_id. Once a schema is bound, every document that lands on the source is extracted automatically and delivered as an extraction.document webhook. Pass extraction_schema_id: null to unbind. Pass reprocess: true to also fill-missing re-extract versions (webhook source_change is schema_changed; join on source_version_id) — also regroups under a newly set publisher_id. Requires policy-update:manage.",
       inputSchema: {
         id: z
           .string()
@@ -1372,19 +1418,49 @@ export function createMcpServer(client: Kaval): McpServer {
           ),
         extraction_schema_id: uuidInput
           .nullable()
+          .optional()
           .describe(
             "the extraction schema to bind, or null to unbind and stop automatic extraction",
+          ),
+        publisher_id: publisherIdInput
+          .optional()
+          .describe(
+            "org publisher UUID from list_publishers / create_publisher; future runs use this identity",
           ),
         reprocess: z
           .boolean()
           .optional()
           .describe(
-            "when true, also re-extract versions that already ran under another schema; default false. Invalid with extraction_schema_id null.",
+            "when true, also re-extract versions that already ran under another schema/publisher; default false. Invalid with extraction_schema_id null.",
           ),
       },
     },
-    async ({ id, ...input }, { signal }) =>
-      safe(() => api.updateSource({ id, ...input }, { signal }), signal),
+    async (
+      { id, extraction_schema_id, publisher_id, reprocess },
+      { signal },
+    ) => {
+      if (extraction_schema_id === undefined && publisher_id === undefined) {
+        return toolError({
+          error: "bad_request",
+          message: "provide extraction_schema_id and/or publisher_id",
+        });
+      }
+      return safe(
+        () =>
+          api.updateSource(
+            {
+              id,
+              ...(extraction_schema_id !== undefined
+                ? { extraction_schema_id }
+                : {}),
+              ...(publisher_id !== undefined ? { publisher_id } : {}),
+              ...(reprocess !== undefined ? { reprocess } : {}),
+            },
+            { signal },
+          ),
+        signal,
+      );
+    },
   );
 
   server.registerTool(

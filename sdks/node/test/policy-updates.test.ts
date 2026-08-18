@@ -70,7 +70,7 @@ function extractionApi(): {
           id: runId,
           workspace_id: "ws_1",
           scope: "payer_period",
-          publisher_id: "aetna",
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           extraction_schema_id: schemaId,
           status: "processing",
@@ -85,7 +85,7 @@ function extractionApi(): {
           id: runId,
           workspace_id: "ws_1",
           scope: "payer_period",
-          publisher_id: "aetna",
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           extraction_schema_id: schemaId,
           status: "succeeded",
@@ -101,7 +101,7 @@ function extractionApi(): {
         package: {
           id: packageId,
           workspace_id: "ws_1",
-          publisher_id: "aetna",
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           status: "ready",
           pdf_href: "https://api.usekaval.com/v1/packages/1.pdf",
@@ -202,7 +202,7 @@ describe("extraction client surface", () => {
     const client = new Kaval({ apiKey: "kv_live_test", fetch: api.fetch });
 
     const run = await client.createExtractionRun({
-      publisher_id: "aetna",
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
       period: "2026-08",
       extraction_schema_id: SCHEMA_ID,
     });
@@ -213,13 +213,15 @@ describe("extraction client surface", () => {
         request.method === "POST" && request.path === "/v1/extraction-runs",
     );
     expect(createRequest?.key).toBeTruthy();
-    expect(createRequest?.body).toMatchObject({ publisher_id: "aetna" });
+    expect(createRequest?.body).toMatchObject({
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+    });
 
     const fetched = await client.getExtractionRun(RUN_ID);
     expect(fetched.status).toBe("succeeded");
 
     const runs = await client.listExtractionRuns({
-      publisher_id: "aetna",
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
       period_from: "2026-01",
       period_to: "2026-08",
     });
@@ -230,7 +232,7 @@ describe("extraction client surface", () => {
         request.path.startsWith("/v1/extraction-runs?"),
     );
     expect(listRequest?.path).toBe(
-      "/v1/extraction-runs?publisher_id=aetna&period_from=2026-01&period_to=2026-08",
+      "/v1/extraction-runs?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period_from=2026-01&period_to=2026-08",
     );
 
     const expanded = await client.listExtractionRuns({
@@ -255,7 +257,7 @@ describe("extraction client surface", () => {
     expect(pkg.status).toBe("ready");
 
     const packages = await client.listExtractionPackages({
-      publisher_id: "aetna",
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
     });
     expect(packages).toEqual([]);
   });

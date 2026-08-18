@@ -454,12 +454,18 @@ def test_add_source_registers_an_entity_by_name_and_returns_what_it_resolved_to(
         )
 
     with make_client(handler) as c:
-        out = c.add_source("entity", name="Aetna", intent="payer policy bulletins")
+        out = c.add_source(
+            "entity",
+            name="Aetna",
+            intent="payer policy bulletins",
+            publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+        )
 
     assert captured["body"] == {
         "kind": "entity",
         "name": "Aetna",
         "intent": "payer policy bulletins",
+        "publisher_id": "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
     }
     assert out["created"] is True
     assert len(out["resolved"]) == 1
@@ -479,6 +485,7 @@ def test_add_source_sends_a_url_locator_with_scope_and_poll_interval():
             label="HTS",
             scope_keys=["hts:8471.30"],
             poll_interval_s=900,
+            publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
         )
 
     assert captured["body"] == {
@@ -487,13 +494,17 @@ def test_add_source_sends_a_url_locator_with_scope_and_poll_interval():
         "label": "HTS",
         "scope_keys": ["hts:8471.30"],
         "poll_interval_s": 900,
+        "publisher_id": "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
     }
 
 
 def test_add_source_requires_a_locator_or_a_name_before_network():
     with refusing_client() as c:
         with pytest.raises(ValueError, match="locator"):
-            c.add_source("url")
+            c.add_source("url", publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22")
+
+        with pytest.raises(ValueError, match="publisher_id"):
+            c.add_source("url", locator="https://example.com")
 
 
 def test_list_sources_gets_the_registry_and_opts_into_inactive_rows():

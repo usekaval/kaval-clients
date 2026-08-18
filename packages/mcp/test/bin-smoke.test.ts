@@ -61,6 +61,8 @@ describe("kaval-mcp bin (smoke)", () => {
         expect.arrayContaining([
           "check",
           "get_receipt",
+          "list_publishers",
+          "create_publisher",
           "add_source",
           "list_sources",
           "remove_source",

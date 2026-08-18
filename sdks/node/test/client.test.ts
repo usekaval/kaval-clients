@@ -9,6 +9,7 @@ import {
   MIN_CHECK_MAX_WAIT_MS,
 } from "../src/index.js";
 import type {
+  AddSourceInput,
   AddSourceResult,
   CalibrationSupportIdentity,
   CheckReceipt,
@@ -225,6 +226,7 @@ describe("Kaval", () => {
       }),
     });
     const out = await kaval.addSource({
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
       kind: "entity",
       name: "Aetna",
       intent: "payer policy bulletins",
@@ -234,6 +236,7 @@ describe("Kaval", () => {
       kind: "entity",
       name: "Aetna",
       intent: "payer policy bulletins",
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
     });
     expect(out.created).toBe(true);
     expect(out.resolved).toHaveLength(1);
@@ -264,6 +267,7 @@ describe("Kaval", () => {
       })),
     });
     const out: AddSourceResult = await kaval.addSource({
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
       kind: "entity",
       name: "Aetna",
     });
@@ -311,7 +315,29 @@ describe("Kaval", () => {
         return { json: {} };
       }),
     });
-    expect(() => kaval.addSource({ kind: "url" })).toThrow(TypeError);
+    expect(() =>
+      kaval.addSource({
+        publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+        kind: "url",
+      }),
+    ).toThrow(TypeError);
+    expect(calls).toBe(0);
+  });
+
+  it("addSource() requires publisher_id before any network call", async () => {
+    let calls = 0;
+    const kaval = new Kaval({
+      fetch: mockFetch(() => {
+        calls += 1;
+        return { json: {} };
+      }),
+    });
+    expect(() =>
+      kaval.addSource({
+        kind: "url",
+        locator: "https://example.com",
+      } as unknown as AddSourceInput),
+    ).toThrow(/publisher_id/);
     expect(calls).toBe(0);
   });
 

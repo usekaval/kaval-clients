@@ -911,6 +911,10 @@ class WatchedSource(TypedDict):
     next_poll_at: str | None
     last_success_at: str | None
     content_sha256: str | None
+    #: Org publisher UUID bound at register / ``update_source``.
+    publisher_id: NotRequired[str | None]
+    #: Inherited publisher when this is a discovered child.
+    resolved_publisher_id: NotRequired[str | None]
     #: The ``ExtractionSchema`` id bound with ``update_source()``, or ``None`` if this source runs
     #: unbound.
     extraction_schema_id: NotRequired[str | None]
@@ -929,6 +933,8 @@ class UpdateSourceResult(WatchedSource):
 
 class AddSourceInput(TypedDict):
     kind: WatchedSourceKind
+    #: Org publisher UUID from :meth:`list_publishers` / :meth:`create_publisher` — required.
+    publisher_id: str
     #: The URL, connection id, or push locator. For ``kind: "entity"`` use ``name`` instead.
     locator: NotRequired[str]
     #: ``kind: "entity"`` reads more naturally as a name — it is the same locator field.
@@ -1005,10 +1011,12 @@ class ExtractionRun(TypedDict):
     workspace_id: str
     scope: ExtractionRunScope
     source_version_id: NotRequired[str]
-    #: Stable publisher slug (e.g. ``aetna``). Prefer ``result["payer_name"]`` for display.
+    #: Org publisher UUID. Prefer ``publisher_name`` (when present) for display.
     publisher_id: NotRequired[str]
-    #: Still accepted on the wire for one release if a host has not flipped the field.
+    #: Expand-era echo of ``publisher_id`` (same uuid string).
     payer_id: NotRequired[str]
+    #: Renameable display label from the org publishers table.
+    publisher_name: NotRequired[str]
     #: Publication / newsletter month ``YYYY-MM``.
     period: NotRequired[str]
     extraction_schema_id: str | None
@@ -1045,8 +1053,9 @@ class ExtractionPackage(TypedDict):
     id: str
     workspace_id: str
     publisher_id: str
-    #: Still accepted on the wire for one release if a host has not flipped the field.
+    #: Expand-era echo of ``publisher_id`` (same uuid string).
     payer_id: NotRequired[str]
+    publisher_name: NotRequired[str]
     #: Publication / newsletter month ``YYYY-MM``.
     period: str
     status: ExtractionPackageStatus
@@ -1054,6 +1063,24 @@ class ExtractionPackage(TypedDict):
     pdf_sha256: NotRequired[str]
     manifest: dict[str, Any]
     built_at: IsoTimestamp
+
+
+class Publisher(TypedDict):
+    """Org-owned publisher. UUID is identity; name is renameable."""
+
+    id: str
+    billing_account_id: str
+    name: str
+    created_at: IsoTimestamp
+    updated_at: IsoTimestamp
+
+
+class CreatePublisherInput(TypedDict):
+    name: str
+
+
+class UpdatePublisherInput(TypedDict):
+    name: str
 
 
 class SourceVersionContent(TypedDict):
@@ -1121,8 +1148,9 @@ EXTRACTION_EVENT_TYPES = (
 class ExtractionDocumentEventData(TypedDict):
     workspace_id: str
     publisher_id: str
-    #: Still accepted on the wire for one release if a host has not flipped the field.
+    #: Expand-era echo of ``publisher_id`` (same uuid string).
     payer_id: NotRequired[str]
+    publisher_name: NotRequired[str]
     source_version_id: str
     #: ``new`` first content version; ``updated`` later version; ``schema_changed`` same PDF
     #: under a newly bound schema. Match ``schema_changed`` on ``source_version_id``.
