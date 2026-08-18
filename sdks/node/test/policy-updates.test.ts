@@ -213,7 +213,9 @@ describe("extraction client surface", () => {
         request.method === "POST" && request.path === "/v1/extraction-runs",
     );
     expect(createRequest?.key).toBeTruthy();
-    expect(createRequest?.body).toMatchObject({ publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22" });
+    expect(createRequest?.body).toMatchObject({
+      publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+    });
 
     const fetched = await client.getExtractionRun(RUN_ID);
     expect(fetched.status).toBe("succeeded");

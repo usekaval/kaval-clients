@@ -935,7 +935,9 @@ export class Kaval {
     options?: RequestOptions,
   ): Promise<AddSourceResult> {
     if (!input?.publisher_id) {
-      throw new TypeError("addSource requires publisher_id (org publisher UUID)");
+      throw new TypeError(
+        "addSource requires publisher_id (org publisher UUID)",
+      );
     }
     if (input?.locator === undefined && input?.name === undefined) {
       throw new TypeError(
@@ -1106,7 +1108,9 @@ export class Kaval {
         ...(input.publisher_id !== undefined
           ? { publisher_id: input.publisher_id }
           : {}),
-        ...(input.reprocess !== undefined ? { reprocess: input.reprocess } : {}),
+        ...(input.reprocess !== undefined
+          ? { reprocess: input.reprocess }
+          : {}),
       },
       options,
     );
@@ -1119,9 +1123,7 @@ export class Kaval {
   /* -------------------------------- publishers -------------------------------- */
 
   /** List org-owned publishers for this workspace's billing account. */
-  async listPublishers(
-    options?: RequestOptions,
-  ): Promise<Publisher[]> {
+  async listPublishers(options?: RequestOptions): Promise<Publisher[]> {
     const { publishers } = await this.request<{ publishers: Publisher[] }>(
       "GET",
       "/v1/publishers",

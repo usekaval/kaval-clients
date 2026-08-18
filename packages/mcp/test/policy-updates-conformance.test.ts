@@ -270,7 +270,10 @@ describe("MCP policy-update tools", () => {
     const listed = parseToolText(
       await client.callTool({
         name: "list_extraction_packages",
-        arguments: { publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22", period: "2026-08" },
+        arguments: {
+          publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+          period: "2026-08",
+        },
       }),
     ) as { extraction_packages?: Array<{ id?: string }> };
     expect(listed.extraction_packages?.[0]?.id).toBe(PACKAGE_ID);

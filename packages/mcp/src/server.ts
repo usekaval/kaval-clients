@@ -1280,7 +1280,10 @@ export function createMcpServer(client: Kaval): McpServer {
     async ({ name, idempotency_key }, { signal }) =>
       safe(
         () =>
-          api.createPublisher({ name }, transportOptions(idempotency_key, signal)),
+          api.createPublisher(
+            { name },
+            transportOptions(idempotency_key, signal),
+          ),
         signal,
       ),
   );
@@ -1432,7 +1435,10 @@ export function createMcpServer(client: Kaval): McpServer {
           ),
       },
     },
-    async ({ id, extraction_schema_id, publisher_id, reprocess }, { signal }) => {
+    async (
+      { id, extraction_schema_id, publisher_id, reprocess },
+      { signal },
+    ) => {
       if (extraction_schema_id === undefined && publisher_id === undefined) {
         return toolError({
           error: "bad_request",
