@@ -4,6 +4,8 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ## Unreleased
 
+## 0.7.8 — released 2026-08-18
+
 ### Breaking
 
 - **`publisher_id` is an org publisher UUID, not a slug.** `addSource` / `add_source` / MCP
