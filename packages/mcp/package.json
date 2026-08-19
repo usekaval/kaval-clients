@@ -1,7 +1,7 @@
 {
   "name": "@usekaval/mcp",
   "mcpName": "io.github.usekaval/kaval",
-  "version": "0.7.8",
+  "version": "0.8.0",
   "license": "Apache-2.0",
   "description": "MCP server for Kaval: before an AI agent acts, verify the facts the action depends on — ALLOW, REVIEW, or BLOCK, with a signed receipt.",
   "type": "module",

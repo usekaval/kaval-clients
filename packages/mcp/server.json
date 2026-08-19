@@ -9,12 +9,12 @@
     "source": "github",
     "subfolder": "packages/mcp"
   },
-  "version": "0.7.8",
+  "version": "0.8.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@usekaval/mcp",
-      "version": "0.7.8",
+      "version": "0.8.0",
       "transport": {
         "type": "stdio"
       },
