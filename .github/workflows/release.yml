@@ -159,9 +159,8 @@ jobs:
           GH_TOKEN: ${{ secrets.KAVAL_DISPATCH_TOKEN }}
         run: |
           set -euo pipefail
-          gh api repos/usekaval/kaval/dispatches \
-            -f event_type=kaval-clients-released \
-            -f client_payload="$(jq -nc \
-              --arg version "${GITHUB_REF_NAME}" \
-              --arg sha "${GITHUB_SHA}" \
-              '{version:$version,sha:$sha}')"
+          jq -nc \
+            --arg version "${GITHUB_REF_NAME}" \
+            --arg sha "${GITHUB_SHA}" \
+            '{event_type:"kaval-clients-released",client_payload:{version:$version,sha:$sha}}' \
+          | gh api repos/usekaval/kaval/dispatches --input -

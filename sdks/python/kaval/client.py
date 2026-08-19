@@ -1086,22 +1086,6 @@ class KavalClient:
         )
         return cast(Publisher, payload["publisher"])
 
-    def get_publisher(
-        self,
-        publisher_id: str,
-        *,
-        timeout: RequestTimeout = None,
-        cancellation_token: Optional[KavalCancellationToken] = None,
-    ) -> Publisher:
-        """Get one org-owned publisher by UUID."""
-        payload = self._request(
-            "GET",
-            f"/v1/publishers/{_path_segment(publisher_id, name='publisher_id')}",
-            timeout=timeout,
-            cancellation_token=cancellation_token,
-        )
-        return cast(Publisher, payload["publisher"])
-
     def update_publisher(
         self,
         publisher_id: str,

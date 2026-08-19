@@ -4,6 +4,14 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ## Unreleased
 
+## 0.8.1 — released 2026-08-18
+
+### Fixed
+
+- Drop the duplicate `get_publisher` that made Pyright fail the Python publish job.
+- Pin-dispatch to usekaval/kaval now sends `client_payload` as a JSON object (v0.7.8 / v0.8.0
+  notify jobs 422'd because `gh api -f` stringified it).
+
 ## 0.8.0 — released 2026-08-18
 
 ### Breaking
@@ -24,8 +32,8 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ### Added
 
-- MCP `get_publisher` / `update_publisher` (Node `getPublisher` was missing; Python
-  `get_publisher` was missing). Full publisher CRUD now matches the host.
+- MCP `get_publisher` / `update_publisher` and Node `getPublisher`. Python already
+  had `get_publisher` / `update_publisher`. Full publisher CRUD now matches the host.
 
 ## 0.7.8 — released 2026-08-18
 
