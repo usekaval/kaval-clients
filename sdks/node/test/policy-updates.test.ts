@@ -69,7 +69,7 @@ function extractionApi(): {
         extraction_run: {
           id: runId,
           workspace_id: "ws_1",
-          scope: "payer_period",
+          scope: "publisher_period",
           publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           extraction_schema_id: schemaId,
@@ -84,7 +84,7 @@ function extractionApi(): {
         extraction_run: {
           id: runId,
           workspace_id: "ws_1",
-          scope: "payer_period",
+          scope: "publisher_period",
           publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
           period: "2026-08",
           extraction_schema_id: schemaId,
@@ -235,18 +235,19 @@ describe("extraction client surface", () => {
       "/v1/extraction-runs?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period_from=2026-01&period_to=2026-08",
     );
 
-    const expanded = await client.listExtractionRuns({
-      expand: "document",
+    const slim = await client.listExtractionRuns({
+      expand_document: false,
       updated_since: "2026-03-01T00:00:00.000Z",
       limit: 25,
     });
-    expect(expanded).toEqual({ extraction_runs: [], next_cursor: null });
-    const expandRequest = api.requests.find(
+    expect(slim).toEqual({ extraction_runs: [], next_cursor: null });
+    const slimRequest = api.requests.find(
       (request) =>
-        request.method === "GET" && request.path.includes("expand=document"),
+        request.method === "GET" &&
+        request.path.includes("expand_document=false"),
     );
-    expect(expandRequest?.path).toContain("updated_since=");
-    expect(expandRequest?.path).toContain("limit=25");
+    expect(slimRequest?.path).toContain("updated_since=");
+    expect(slimRequest?.path).toContain("limit=25");
   });
 
   it("gets and lists monthly packages", async () => {

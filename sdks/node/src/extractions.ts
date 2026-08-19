@@ -27,20 +27,27 @@ export interface CreateExtractionSchemaInput {
 }
 
 export type ExtractionRunStatus =
-  "processing" | "retry" | "succeeded" | "review_required" | "failed";
+  | "processing"
+  | "retry"
+  | "succeeded"
+  | "review_required"
+  | "failed"
+  | "out_of_scope";
 
-export type ExtractionRunScope = "document" | "payer_period";
+export type ExtractionRunScope = "document" | "publisher_period";
 
 /**
  * One extraction attempt — either against a single document (`scope: "document"`, the basis of an
- * `extraction.document` webhook) or a publisher + period rollup (`scope: "payer_period"`, created
- * by `createExtractionRun()`). The product still calls this an Update.
+ * `extraction.document` webhook) or a publisher + period rollup (`scope: "publisher_period"`,
+ * created by `createExtractionRun()`). The product still calls this an Update.
  */
 export interface ExtractionRun {
   id: string;
   workspace_id: string;
   scope: ExtractionRunScope;
   source_version_id?: string;
+  /** Watched source this version belongs to (document scope). */
+  source_id?: string;
   /** Org publisher UUID. Prefer `publisher_name` (when present) for display. */
   publisher_id?: string;
   /** Expand-era echo of `publisher_id` (same uuid string). */
@@ -58,9 +65,8 @@ export interface ExtractionRun {
   prompt_sha256?: string;
   sections?: Record<string, unknown>;
   /**
-   * Schema records plus provenance helpers when present:
-   * `records`, `record_evidence` (parallel to records), `document_period`, `period_basis`,
-   * `payer_name`.
+   * Customer-schema payload. `records[]` include nested `evidence` (never a sibling
+   * `record_evidence`). Other keys (`document_period`, `period_basis`, `payer_name`) may pass through.
    */
   result?: Record<string, unknown>;
   raw_output?: string;
@@ -71,14 +77,24 @@ export interface ExtractionRun {
   finished_at?: string;
   reprocess?: true;
   generation?: number;
+  /**
+   * Slim PDF chrome. Present on GET/list unless `expand_document: false`; null for
+   * `publisher_period` rows. Never null on `extraction.document`.
+   */
+  document?: ExtractionDocumentExpand | null;
 }
 
-/** Request a publisher + period extraction run. Requires `policy-update:manage`. */
+/**
+ * Request a publisher + period extraction run. Requires `policy-update:manage`.
+ * Pass `source_id` or `extraction_schema_id`, not both; omit both when exactly one schema
+ * is bound across sources in the workspace.
+ */
 export interface CreateExtractionRunInput {
   publisher_id: string;
   /** Publication / newsletter month `YYYY-MM`. */
   period: string;
-  extraction_schema_id: string;
+  source_id?: string;
+  extraction_schema_id?: string;
 }
 
 export interface ExtractionRunListOptions {
@@ -93,24 +109,18 @@ export interface ExtractionRunListOptions {
   updated_since?: string;
   cursor?: string;
   limit?: number;
-  /** When `"document"`, response includes parallel webhook-parity `documents`. */
-  expand?: "document";
+  /** Nested `document` PDF chrome (or null). Defaults to true; pass false to omit. */
+  expand_document?: boolean;
 }
 
 export interface ExtractionRunListPage {
   extraction_runs: ExtractionRun[];
-  /** Present when `expand: "document"` — same length/order as `extraction_runs`. */
-  documents?: Array<ExtractionDocumentEvent["data"] | null>;
   next_cursor: string | null;
 }
 
 export interface ExtractionRunGetOptions {
-  expand?: "document";
-}
-
-export interface ExtractionRunGetResult {
-  extraction_run: ExtractionRun;
-  document?: ExtractionDocumentEvent["data"] | null;
+  /** Nested `document` PDF chrome (or null). Defaults to true; pass false to omit. */
+  expand_document?: boolean;
 }
 
 export type ExtractionPackageStatus = "ready" | "partial";
@@ -163,12 +173,30 @@ export interface ExtractionDocumentSection {
   bbox?: ExtractionBbox;
 }
 
-/** Locates one extracted record in the source PDF via its section + layout. */
+/** Locates one extracted record in the source PDF via its section + layout. Nested on each record as `evidence`. */
 export interface ExtractionRecordEvidence {
   section_index: number;
   page: number;
   bbox: ExtractionBbox;
   block_ids?: string[];
+}
+
+/** Slim PDF chrome nested on the public run (`extraction_run.document`). */
+export interface ExtractionDocumentExpand {
+  source_change: "new" | "updated" | "schema_changed";
+  generation?: number;
+  source_id: string;
+  locator?: string;
+  title?: string;
+  pdf_href: string;
+  content_href: string;
+  sections: ExtractionDocumentSection[];
+  cites?: Array<{ locator: string; source_id?: string }>;
+  cited_from?: {
+    source_id: string;
+    locator: string;
+    source_version_id?: string;
+  };
 }
 
 /** `GET /v1/source-versions/:id/content?format=sections`. */
@@ -235,33 +263,9 @@ export interface ExtractionDocumentEvent {
   sequence: number;
   data: {
     workspace_id: string;
-    publisher_id: string;
-    /** Expand-era echo of `publisher_id` (same uuid string). */
-    payer_id?: string;
-    publisher_name?: string;
-    source_version_id: string;
-    /**
-     * `new` — first content version. `updated` — later version of the same source.
-     * `schema_changed` — same PDF extracted again under a newly bound schema.
-     * Match `schema_changed` to the earlier extract on `source_version_id` (also
-     * envelope `correlation_id`).
-     */
-    source_change?: "new" | "updated" | "schema_changed";
-    source_id?: string;
-    /** Present only when this extract is a later generation of the same identity. */
-    generation?: number;
-    /** Durable Kaval source-version PDF URL — not a short-lived parser studio link. */
-    pdf_href: string;
-    content_href: string;
-    sections: ExtractionDocumentSection[];
-    extraction_run: ExtractionRun;
-    /** Present when a schema was bound; absent for content-only delivery. */
-    extraction?: {
-      records: unknown[];
-      run_href: string;
-      /** Parallel to `records`; empty array when a record has no locatable section. */
-      record_evidence?: ExtractionRecordEvidence[][];
-    };
+    extraction_run: ExtractionRun & { document: ExtractionDocumentExpand };
+    /** Durable GET for the full run resource. */
+    run_href: string;
   };
 }
 

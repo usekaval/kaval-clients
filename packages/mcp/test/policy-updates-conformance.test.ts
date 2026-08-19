@@ -71,7 +71,7 @@ function policyUpdatesFetch(): {
         extraction_run: {
           id: RUN_ID,
           workspace_id: "ws_1",
-          scope: "payer_period",
+          scope: "publisher_period",
           payer_id: "aetna",
           period: "2026-08",
           extraction_schema_id: SCHEMA_ID,
@@ -86,7 +86,7 @@ function policyUpdatesFetch(): {
         extraction_run: {
           id: RUN_ID,
           workspace_id: "ws_1",
-          scope: "payer_period",
+          scope: "publisher_period",
           payer_id: "aetna",
           period: "2026-08",
           extraction_schema_id: SCHEMA_ID,

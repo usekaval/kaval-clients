@@ -410,10 +410,11 @@ and the way a directly-registered `kind: "url"` source gets a plan at all. It an
 Register a JSON Schema and bind it to a source; every document that lands on that source afterward
 is extracted against it and delivered as an `extraction.document` webhook, with per-publisher monthly
 rollups delivered as `extraction.package`. On each document event, `extraction_run.period`
-is the publication / newsletter month (`YYYY-MM`); sections and `extraction.record_evidence` may
-include normalized `page` / `bbox` for PDF highlighting; `result.payer_name` is the human brand
-beside the stable `publisher_id` slug. Response payloads may still include `payer_id` as a retired
-alias if a host has not flipped the field.
+is the publication / newsletter month (`YYYY-MM`); `extraction_run.document` carries PDF chrome
+(`pdf_href`, `content_href`, `sections` with optional `page` / `bbox`); each `result.records[]`
+item nests `evidence` for highlighting. `result.payer_name` is the human brand beside the stable
+`publisher_id` UUID. Response payloads may still include `payer_id` as a retired alias if a host
+has not flipped the field.
 
 ```ts
 const schema = await kaval.createExtractionSchema({
@@ -439,13 +440,17 @@ publisher + period extraction run directly against a bound schema:
 
 ```ts
 const run = await kaval.createExtractionRun({
-  publisher_id: "aetna",
+  publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
   period: "2026-08",
   extraction_schema_id: schema.id,
 });
 // 202, run.status: "processing" — poll getExtractionRun(run.id) or wait for the webhook.
 
-await kaval.listExtractionRuns({ publisher_id: "aetna", period_from: "2026-08", period_to: "2026-08" });
+await kaval.listExtractionRuns({
+  publisher_id: "7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22",
+  period_from: "2026-08",
+  period_to: "2026-08",
+});
 await kaval.getExtractionRun(run.id);
 await kaval.listExtractionSchemas();
 await kaval.getExtractionSchema(schema.id);

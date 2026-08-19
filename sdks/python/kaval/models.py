@@ -990,27 +990,30 @@ class CreateExtractionSchemaInput(TypedDict):
 
 
 ExtractionRunStatus: TypeAlias = Literal[
-    "processing", "retry", "succeeded", "review_required", "failed"
+    "processing", "retry", "succeeded", "review_required", "failed", "out_of_scope"
 ]
-ExtractionRunScope: TypeAlias = Literal["document", "payer_period"]
+ExtractionRunScope: TypeAlias = Literal["document", "publisher_period"]
 
 
 class ExtractionRun(TypedDict):
     """One extraction attempt.
 
     Either against a single document (``scope: "document"``, the basis of an
-    ``extraction.document`` webhook) or a publisher + period rollup (``scope: "payer_period"``,
+    ``extraction.document`` webhook) or a publisher + period rollup (``scope: "publisher_period"``,
     created by :meth:`KavalClient.create_extraction_run`). The product still calls this an Update.
 
     ``period`` is the publication / newsletter month (``YYYY-MM``), not the effective month of an
-    individual PA change. ``result`` may include ``records``, ``record_evidence``,
-    ``document_period``, ``period_basis``, and ``payer_name``.
+    individual PA change. ``result["records"]`` include nested ``evidence`` (never a sibling
+    ``record_evidence``). Other keys (``document_period``, ``period_basis``, ``payer_name``) may
+    pass through. ``document`` is nested PDF chrome unless ``expand_document=False``.
     """
 
     id: str
     workspace_id: str
     scope: ExtractionRunScope
     source_version_id: NotRequired[str]
+    #: Watched source this version belongs to (document scope).
+    source_id: NotRequired[str]
     #: Org publisher UUID. Prefer ``publisher_name`` (when present) for display.
     publisher_id: NotRequired[str]
     #: Expand-era echo of ``publisher_id`` (same uuid string).
@@ -1033,15 +1036,22 @@ class ExtractionRun(TypedDict):
     finished_at: NotRequired[IsoTimestamp]
     reprocess: NotRequired[Literal[True]]
     generation: NotRequired[int]
+    #: Slim PDF chrome. Present unless ``expand_document=False``; null for publisher-period rows.
+    document: NotRequired["ExtractionDocumentExpand | None"]
 
 
 class CreateExtractionRunInput(TypedDict):
-    """Request a publisher + period extraction run. Requires ``policy-update:manage``."""
+    """Request a publisher + period extraction run. Requires ``policy-update:manage``.
+
+    Pass ``source_id`` or ``extraction_schema_id``, not both; omit both when exactly one schema
+    is bound across sources in the workspace.
+    """
 
     publisher_id: str
     #: Publication / newsletter month ``YYYY-MM``.
     period: str
-    extraction_schema_id: str
+    source_id: NotRequired[str]
+    extraction_schema_id: NotRequired[str]
 
 
 ExtractionPackageStatus: TypeAlias = Literal["ready", "partial"]
@@ -1121,13 +1131,19 @@ class ExtractionRecordEvidence(TypedDict):
     block_ids: NotRequired[list[str]]
 
 
-class ExtractionRecords(TypedDict):
-    """Schema-bound payload nested under ``extraction.document`` ``data.extraction``."""
+class ExtractionDocumentExpand(TypedDict):
+    """Slim PDF chrome nested on the public run (``extraction_run.document``)."""
 
-    records: list[Any]
-    run_href: str
-    #: Parallel to ``records``; empty list when a record has no locatable section.
-    record_evidence: NotRequired[list[list[ExtractionRecordEvidence]]]
+    source_change: Literal["new", "updated", "schema_changed"]
+    source_id: str
+    title: NotRequired[str]
+    generation: NotRequired[int]
+    locator: NotRequired[str]
+    pdf_href: str
+    content_href: str
+    sections: list[ExtractionDocumentSection]
+    cites: NotRequired[list[dict[str, Any]]]
+    cited_from: NotRequired[dict[str, Any]]
 
 
 class SourceVersionSections(TypedDict):
@@ -1147,23 +1163,9 @@ EXTRACTION_EVENT_TYPES = (
 
 class ExtractionDocumentEventData(TypedDict):
     workspace_id: str
-    publisher_id: str
-    #: Expand-era echo of ``publisher_id`` (same uuid string).
-    payer_id: NotRequired[str]
-    publisher_name: NotRequired[str]
-    source_version_id: str
-    #: ``new`` first content version; ``updated`` later version; ``schema_changed`` same PDF
-    #: under a newly bound schema. Match ``schema_changed`` on ``source_version_id``.
-    source_change: NotRequired[Literal["new", "updated", "schema_changed"]]
-    source_id: NotRequired[str]
-    generation: NotRequired[int]
-    #: Durable Kaval source-version PDF URL — not a short-lived parser studio link.
-    pdf_href: str
-    content_href: str
-    sections: list[ExtractionDocumentSection]
     extraction_run: ExtractionRun
-    #: Present when a schema was bound; absent for content-only delivery.
-    extraction: NotRequired[ExtractionRecords]
+    #: Durable GET for the full run resource.
+    run_href: str
 
 
 class ExtractionDocumentEvent(TypedDict):

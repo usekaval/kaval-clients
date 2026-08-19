@@ -1070,6 +1070,38 @@ class KavalClient:
         )
         return cast(Publisher, payload["publisher"])
 
+    def get_publisher(
+        self,
+        publisher_id: str,
+        *,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> Publisher:
+        """Get one org-owned publisher by UUID."""
+        payload = self._request(
+            "GET",
+            f"/v1/publishers/{_path_segment(publisher_id, name='publisher_id')}",
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast(Publisher, payload["publisher"])
+
+    def get_publisher(
+        self,
+        publisher_id: str,
+        *,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> Publisher:
+        """Get one org-owned publisher by UUID."""
+        payload = self._request(
+            "GET",
+            f"/v1/publishers/{_path_segment(publisher_id, name='publisher_id')}",
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast(Publisher, payload["publisher"])
+
     def update_publisher(
         self,
         publisher_id: str,
@@ -1175,7 +1207,8 @@ class KavalClient:
         *,
         publisher_id: str,
         period: str,
-        extraction_schema_id: str,
+        source_id: Optional[str] = None,
+        extraction_schema_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
@@ -1183,17 +1216,22 @@ class KavalClient:
         """Request a publisher + period extraction run against a bound schema.
 
         The one-off counterpart to letting a source's bound schema run automatically as documents
-        land. Requires ``policy-update:manage``. Answers 202 with the run in ``processing``; poll
-        :meth:`get_extraction_run` or wait for its ``extraction.document`` webhook.
+        land. Pass ``source_id`` or ``extraction_schema_id``, not both; omit both when exactly one
+        schema is bound across sources in the workspace. Requires ``policy-update:manage``.
+        Answers 202 with the run in ``processing``; poll :meth:`get_extraction_run` or wait for
+        its ``extraction.document`` webhook.
         """
-        body: CreateExtractionRunInput = {
+        body: dict[str, Any] = {
             "publisher_id": publisher_id,
             "period": period,
-            "extraction_schema_id": extraction_schema_id,
         }
+        if source_id is not None:
+            body["source_id"] = source_id
+        if extraction_schema_id is not None:
+            body["extraction_schema_id"] = extraction_schema_id
         payload = self._billable_post(
             "/v1/extraction-runs",
-            cast("dict[str, Any]", body),
+            body,
             idempotency_key=idempotency_key,
             timeout=timeout,
             cancellation_token=cancellation_token,
@@ -1204,22 +1242,19 @@ class KavalClient:
         self,
         run_id: str,
         *,
-        expand: Optional[Literal["document"]] = None,
+        expand_document: bool = True,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
-    ) -> ExtractionRun | dict[str, Any]:
+    ) -> ExtractionRun:
         payload = self._request(
             "GET",
             f"/v1/extraction-runs/{_path_segment(run_id, name='run_id')}",
-            params=_clean({"expand": expand}),
+            params=_clean(
+                {"expand_document": "false" if expand_document is False else None}
+            ),
             timeout=timeout,
             cancellation_token=cancellation_token,
         )
-        if expand == "document":
-            return {
-                "extraction_run": cast(ExtractionRun, payload["extraction_run"]),
-                "document": payload.get("document"),
-            }
         return cast(ExtractionRun, payload["extraction_run"])
 
     def list_extraction_runs(
@@ -1232,7 +1267,7 @@ class KavalClient:
         updated_since: Optional[str] = None,
         cursor: Optional[str] = None,
         limit: Optional[int] = None,
-        expand: Optional[Literal["document"]] = None,
+        expand_document: bool = True,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
     ) -> dict[str, Any]:
@@ -1248,19 +1283,16 @@ class KavalClient:
                     "updated_since": updated_since,
                     "cursor": cursor,
                     "limit": limit,
-                    "expand": expand,
+                    "expand_document": "false" if expand_document is False else None,
                 }
             ),
             timeout=timeout,
             cancellation_token=cancellation_token,
         )
-        page: dict[str, Any] = {
+        return {
             "extraction_runs": cast("list[ExtractionRun]", payload["extraction_runs"]),
             "next_cursor": payload.get("next_cursor"),
         }
-        if "documents" in payload:
-            page["documents"] = payload["documents"]
-        return page
 
     def get_extraction_package(
         self,

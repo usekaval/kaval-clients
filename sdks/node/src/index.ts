@@ -44,7 +44,6 @@ import type {
   ExtractionPackageListOptions,
   ExtractionRun,
   ExtractionRunGetOptions,
-  ExtractionRunGetResult,
   ExtractionRunListOptions,
   ExtractionRunListPage,
   ExtractionSchema,
@@ -1150,6 +1149,20 @@ export class Kaval {
     return publisher;
   }
 
+  /** Get one org-owned publisher by UUID. */
+  async getPublisher(
+    publisherId: string,
+    options?: RequestOptions,
+  ): Promise<Publisher> {
+    const { publisher } = await this.request<{ publisher: Publisher }>(
+      "GET",
+      `/v1/publishers/${encodeId(publisherId)}`,
+      undefined,
+      options,
+    );
+    return publisher;
+  }
+
   /** Rename an org-owned publisher. Identity (UUID) is unchanged. */
   async updatePublisher(
     publisherId: string,
@@ -1253,42 +1266,43 @@ export class Kaval {
   ): Promise<ExtractionRun> {
     const { extraction_run } = await this.request<{
       extraction_run: ExtractionRun;
-    }>("POST", "/v1/extraction-runs", input, options, {
-      "idempotency-key": options?.idempotencyKey ?? generatedIdempotencyKey(),
-    });
+    }>(
+      "POST",
+      "/v1/extraction-runs",
+      {
+        publisher_id: input.publisher_id,
+        period: input.period,
+        ...(input.source_id !== undefined
+          ? { source_id: input.source_id }
+          : {}),
+        ...(input.extraction_schema_id !== undefined
+          ? { extraction_schema_id: input.extraction_schema_id }
+          : {}),
+      },
+      options,
+      {
+        "idempotency-key": options?.idempotencyKey ?? generatedIdempotencyKey(),
+      },
+    );
     return extraction_run;
   }
 
-  getExtractionRun(
-    runId: string,
-    options: RequestOptions & ExtractionRunGetOptions & { expand: "document" },
-  ): Promise<ExtractionRunGetResult>;
-  getExtractionRun(
-    runId: string,
-    options?: RequestOptions & ExtractionRunGetOptions,
-  ): Promise<ExtractionRun>;
   async getExtractionRun(
     runId: string,
     options?: RequestOptions & ExtractionRunGetOptions,
-  ): Promise<ExtractionRun | ExtractionRunGetResult> {
+  ): Promise<ExtractionRun> {
     const query = new URLSearchParams();
-    if (options?.expand !== undefined) query.set("expand", options.expand);
+    if (options?.expand_document === false)
+      query.set("expand_document", "false");
     const search = query.toString();
     const response = await this.request<{
       extraction_run: ExtractionRun;
-      document?: ExtractionRunGetResult["document"];
     }>(
       "GET",
       `/v1/extraction-runs/${encodeId(runId)}${search === "" ? "" : `?${search}`}`,
       undefined,
       options,
     );
-    if (options?.expand === "document") {
-      return {
-        extraction_run: response.extraction_run,
-        document: response.document ?? null,
-      };
-    }
     return response.extraction_run;
   }
 
@@ -1308,7 +1322,8 @@ export class Kaval {
       query.set("updated_since", options.updated_since);
     if (options?.cursor !== undefined) query.set("cursor", options.cursor);
     if (options?.limit !== undefined) query.set("limit", String(options.limit));
-    if (options?.expand !== undefined) query.set("expand", options.expand);
+    if (options?.expand_document === false)
+      query.set("expand_document", "false");
     const search = query.toString();
     return this.request<ExtractionRunListPage>(
       "GET",
@@ -1317,9 +1332,6 @@ export class Kaval {
       options,
     ).then((response) => ({
       extraction_runs: response.extraction_runs,
-      ...(response.documents !== undefined
-        ? { documents: response.documents }
-        : {}),
       next_cursor: response.next_cursor ?? null,
     }));
   }

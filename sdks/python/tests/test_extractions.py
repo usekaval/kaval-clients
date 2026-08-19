@@ -22,7 +22,7 @@ SCHEMA = {
 RUN = {
     "id": "20000000-0000-4000-8000-000000000001",
     "workspace_id": "ws_1",
-    "scope": "payer_period",
+    "scope": "publisher_period",
     "payer_id": "aetna",
     "period": "2026-08",
     "extraction_schema_id": SCHEMA["id"],
@@ -113,7 +113,7 @@ def test_get_and_list_extraction_schemas():
     ]
 
 
-def test_create_extraction_run_requests_a_payer_period_run_with_an_idempotency_key():
+def test_create_extraction_run_requests_a_publisher_period_run_with_an_idempotency_key():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -144,9 +144,9 @@ def test_get_and_list_extraction_runs():
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append((request.method, str(request.url)))
         if request.url.path.endswith(RUN["id"]):
-            return httpx.Response(200, json={"extraction_run": RUN, "document": None})
+            return httpx.Response(200, json={"extraction_run": RUN})
         return httpx.Response(
-            200, json={"extraction_runs": [RUN], "documents": [None], "next_cursor": None}
+            200, json={"extraction_runs": [RUN], "next_cursor": None}
         )
 
     with make_client(handler) as c:
@@ -155,14 +155,12 @@ def test_get_and_list_extraction_runs():
             publisher_id="7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22", period_from="2026-01", period_to="2026-08"
         ) == {
             "extraction_runs": [RUN],
-            "documents": [None],
             "next_cursor": None,
         }
         assert c.list_extraction_runs(
-            expand="document", updated_since="2026-03-01T00:00:00.000Z", limit=25
+            expand_document=False, updated_since="2026-03-01T00:00:00.000Z", limit=25
         ) == {
             "extraction_runs": [RUN],
-            "documents": [None],
             "next_cursor": None,
         }
 
@@ -171,7 +169,7 @@ def test_get_and_list_extraction_runs():
         "GET",
         "http://test/v1/extraction-runs?publisher_id=7c3e1a90-2b4d-4f18-9e6c-8a1b0d5e4f22&period_from=2026-01&period_to=2026-08",
     )
-    assert "expand=document" in seen[2][1]
+    assert "expand_document=false" in seen[2][1]
     assert "updated_since=" in seen[2][1]
     assert "limit=25" in seen[2][1]
 

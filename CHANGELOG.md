@@ -4,6 +4,29 @@ All packages in this repo version in lockstep (`scripts/bump.mjs`).
 
 ## Unreleased
 
+## 0.8.0 — released 2026-08-18
+
+### Breaking
+
+- **`extraction.document` data is the public run.** Webhook `data` is now
+  `{ workspace_id, extraction_run, run_href }`. PDF chrome (`pdf_href`, `content_href`,
+  `sections`, `source_change`, `source_id`) lives on `extraction_run.document`. Records and
+  nested `evidence` live on `extraction_run.result.records` — there is no sibling
+  `data.extraction` / `record_evidence`.
+- **GET/list expand query is `expand_document`.** The old `expand=document` parameter is
+  rejected by the host. Document chrome is nested on each run (`document: … | null`) and
+  defaults to on; pass `expand_document: false` to omit. The parallel `documents[]` array
+  and the `{ extraction_run, document }` get wrapper are gone.
+- **Run scope is `publisher_period`** (was `payer_period`). Status includes `out_of_scope`.
+- **`createExtractionRun` / `create_extraction_run`:** `extraction_schema_id` is optional.
+  Pass `source_id` or `extraction_schema_id`, not both; omit both when exactly one schema is
+  bound in the workspace.
+
+### Added
+
+- MCP `get_publisher` / `update_publisher` (Node `getPublisher` was missing; Python
+  `get_publisher` was missing). Full publisher CRUD now matches the host.
+
 ## 0.7.8 — released 2026-08-18
 
 ### Breaking

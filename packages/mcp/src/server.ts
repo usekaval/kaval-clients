@@ -364,6 +364,15 @@ interface WireClient {
     input: Record<string, unknown>,
     options?: TransportOptions,
   ): Promise<unknown>;
+  getPublisher(
+    publisherId: string,
+    options?: TransportOptions,
+  ): Promise<unknown>;
+  updatePublisher(
+    publisherId: string,
+    input: Record<string, unknown>,
+    options?: TransportOptions,
+  ): Promise<unknown>;
   deleteSource(sourceId: string, options?: TransportOptions): Promise<unknown>;
   reportOutcome(
     input: Record<string, unknown>,
@@ -1167,13 +1176,22 @@ export function createMcpServer(client: Kaval): McpServer {
     "create_extraction_run",
     {
       description:
-        "Request a one-off publisher + period extraction run against a bound extraction schema, instead of waiting for the next document to land on a watched source. Requires policy-update:manage. Answers with the run in status 'processing' — poll get_extraction_run or wait for its extraction.document webhook.",
+        "Request a one-off publisher + period extraction run. Pass source_id or extraction_schema_id, not both; omit both when exactly one schema is bound in the workspace. Requires policy-update:manage. Answers with the run in status 'processing' — poll get_extraction_run or wait for its extraction.document webhook.",
       inputSchema: {
         publisher_id: publisherIdInput.describe(
           "org publisher UUID (from list_publishers / create_publisher)",
         ),
         period: periodInput.describe("the YYYY-MM period to extract"),
-        extraction_schema_id: uuidInput,
+        source_id: uuidInput
+          .optional()
+          .describe(
+            "watched source whose bound schema should drive this publisher-period run",
+          ),
+        extraction_schema_id: uuidInput
+          .optional()
+          .describe(
+            "explicit schema override; do not pass together with source_id",
+          ),
         idempotency_key: idempotencyKeyInput,
       },
     },
@@ -1192,18 +1210,23 @@ export function createMcpServer(client: Kaval): McpServer {
     "get_extraction_run",
     {
       description:
-        "Get one extraction run (an Update) by id — its status (processing | retry | succeeded | review_required | failed), the schema it ran against, and its extracted result once it succeeds. Pass expand='document' for the same document payload the extraction.document webhook delivers (pdf_href, content_href, sections, optional extraction.records / record_evidence).",
+        "Get one extraction run (an Update) by id — its status (processing | retry | succeeded | review_required | failed | out_of_scope), the schema it ran against, and its extracted result once it succeeds. Document PDF chrome (pdf_href, content_href, sections) is nested on extraction_run.document by default; pass expand_document=false to omit. Records and nested evidence live on extraction_run.result.",
       inputSchema: {
         run_id: uuidInput,
-        expand: z.literal("document").optional(),
+        expand_document: z
+          .boolean()
+          .optional()
+          .describe(
+            "nested document chrome on the run; defaults to true. Pass false to omit.",
+          ),
       },
     },
-    async ({ run_id, expand }, { signal }) =>
+    async ({ run_id, expand_document }, { signal }) =>
       safe(
         () =>
           api.getExtractionRun(run_id, {
             signal,
-            ...(expand ? { expand } : {}),
+            ...(expand_document === false ? { expand_document: false } : {}),
           }),
         signal,
       ),
@@ -1213,7 +1236,7 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_extraction_runs",
     {
       description:
-        "List extraction runs (Updates). Filter by publisher_id (org publisher UUID), optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Pass expand='document' for parallel webhook-parity documents[] (null for non-document runs). Returns { extraction_runs, next_cursor, documents? }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
+        "List extraction runs (Updates). Filter by publisher_id (org publisher UUID), optional period_from and/or period_to (YYYY-MM), created_since/updated_since (ISO-8601), and page with limit + cursor. Document chrome is nested on each run.document by default; pass expand_document=false to omit. Returns { extraction_runs, next_cursor }. Prefer webhooks for steady state; use this to catch up. Sources: list_sources / get_source_version_content.",
       inputSchema: {
         publisher_id: publisherIdInput.optional(),
         period_from: periodInput.optional(),
@@ -1222,7 +1245,12 @@ export function createMcpServer(client: Kaval): McpServer {
         updated_since: z.string().datetime({ offset: true }).optional(),
         cursor: z.string().min(1).max(1_000).optional(),
         limit: z.number().int().min(1).max(100).optional(),
-        expand: z.literal("document").optional(),
+        expand_document: z
+          .boolean()
+          .optional()
+          .describe(
+            "nested document chrome on each run; defaults to true. Pass false to omit.",
+          ),
       },
     },
     async (args, { signal }) =>
@@ -1284,6 +1312,36 @@ export function createMcpServer(client: Kaval): McpServer {
             { name },
             transportOptions(idempotency_key, signal),
           ),
+        signal,
+      ),
+  );
+
+  server.registerTool(
+    "get_publisher",
+    {
+      description:
+        "Get one org-owned publisher by UUID. Display name is renameable; identity is the UUID used as publisher_id on sources and extraction runs.",
+      inputSchema: {
+        publisher_id: publisherIdInput,
+      },
+    },
+    async ({ publisher_id }, { signal }) =>
+      safe(() => api.getPublisher(publisher_id, { signal }), signal),
+  );
+
+  server.registerTool(
+    "update_publisher",
+    {
+      description:
+        "Rename an org-owned publisher. The UUID identity is unchanged — existing sources and runs keep grouping under it.",
+      inputSchema: {
+        publisher_id: publisherIdInput,
+        name: z.string().trim().min(1).max(128).describe("new display name"),
+      },
+    },
+    async ({ publisher_id, name }, { signal }) =>
+      safe(
+        () => api.updatePublisher(publisher_id, { name }, { signal }),
         signal,
       ),
   );

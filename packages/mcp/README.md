@@ -65,10 +65,12 @@ It speaks MCP over stdio. Point any MCP client at it.
 | `list_extraction_schemas`           | List the extraction schemas registered in this workspace.                                                                                                                |
 | `create_extraction_run`              | Request a one-off publisher + period extraction run against a bound schema. Requires `policy-update:manage`.                                                             |
 | `get_extraction_run`                 | Get one extraction run by id — status, schema, and result once it succeeds.                                                                                              |
-| `list_extraction_runs`               | List extraction runs with publisher/period/time filters, cursor pagination, and optional `expand=document` for webhook-parity payloads.                                  |
+| `list_extraction_runs`               | List extraction runs with publisher/period/time filters, cursor pagination, and nested `document` chrome (pass `expand_document: false` to omit).                         |
 | `list_extraction_packages`       | List the monthly PDF + manifest rollups extraction runs are packaged into.                                                                                               |
 | `list_publishers`                   | List org-owned publishers for this workspace's billing account.                                                                                                          |
 | `create_publisher`                  | Create an org-owned publisher (UUID identity; renameable display name).                                                                                                  |
+| `get_publisher`                     | Get one org-owned publisher by UUID.                                                                                                                                     |
+| `update_publisher`                  | Rename an org-owned publisher. UUID identity is unchanged.                                                                                                               |
 | `add_source`                        | Tell Kaval what to watch — requires `publisher_id` (org publisher UUID). A URL, a named authority to resolve, or a document you will push in.                            |
 | `list_sources`                      | What Kaval currently watches for this workspace, including sources it auto-registered after a check cited them.                                                          |
 | `remove_source`                     | Stop watching a source and forget it. The only thing that frees a registered/resolved workspace slot (auto-registered citations count there; discovered children use a separate per-parent ceiling). |
@@ -206,7 +208,7 @@ keep working.
 Watched sources are only half the mechanism: when a source changes, Kaval re-evaluates the dependent
 facts and pushes a `fact_state.delta` webhook naming what flipped; a source with a bound extraction
 schema also pushes `extraction.document` (and, monthly, `extraction.package`) with the
-extracted records, optional section `page`/`bbox`, and `record_evidence` for PDF highlighting.
+extracted records (nested `evidence` on each record) and optional section `page`/`bbox` for PDF highlighting.
 `extraction_run.period` is the publication / newsletter month. **Those subscriptions are
 deliberately not exposed as MCP tools.** They are
 one-time deployment configuration — each mints a standing outbound callback bound to an https

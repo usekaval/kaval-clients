@@ -63,6 +63,8 @@ describe("kaval-mcp bin (smoke)", () => {
           "get_receipt",
           "list_publishers",
           "create_publisher",
+          "get_publisher",
+          "update_publisher",
           "add_source",
           "list_sources",
           "remove_source",

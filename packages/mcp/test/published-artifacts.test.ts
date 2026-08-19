@@ -60,6 +60,8 @@ const EXPECTED_TOOLS = [
   "list_extraction_packages",
   "list_publishers",
   "create_publisher",
+  "get_publisher",
+  "update_publisher",
   "add_source",
   "list_sources",
   "remove_source",
