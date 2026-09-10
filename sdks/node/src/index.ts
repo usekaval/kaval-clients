@@ -1150,18 +1150,11 @@ export class Kaval {
   }
 
   async listExtractionSchemas(
-    options?: RequestOptions & { watched_only?: boolean },
+    options?: RequestOptions,
   ): Promise<ExtractionSchema[]> {
     const { extraction_schemas } = await this.request<{
       extraction_schemas: ExtractionSchema[];
-    }>(
-      "GET",
-      options?.watched_only === undefined
-        ? "/v1/extraction-schemas"
-        : `/v1/extraction-schemas?watched_only=${options.watched_only}`,
-      undefined,
-      options,
-    );
+    }>("GET", "/v1/extraction-schemas", undefined, options);
     return extraction_schemas;
   }
 

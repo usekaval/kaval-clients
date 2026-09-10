@@ -718,11 +718,3 @@ Demo results carry no organizational authority. A production `ALLOW` requires a 
 action policy and applicable empirical calibration; `REVIEW` is never permission to act.
 
 The Python client mirrors this surface: `pip install kaval`.
-
-Schema lists show schemas for active watched sources by default. To include unbound schemas, use:
-
-```ts
-await kaval.listExtractionSchemas({ watched_only: false });
-```
-
-Schema details remain available by ID for historical extraction runs.

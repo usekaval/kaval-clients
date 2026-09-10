@@ -1085,14 +1085,12 @@ class KavalClient:
     def list_extraction_schemas(
         self,
         *,
-        watched_only: bool = True,
         timeout: RequestTimeout = None,
         cancellation_token: Optional[KavalCancellationToken] = None,
     ) -> list[ExtractionSchema]:
         payload = self._request(
             "GET",
             "/v1/extraction-schemas",
-            params={"watched_only": str(watched_only).lower()},
             timeout=timeout,
             cancellation_token=cancellation_token,
         )

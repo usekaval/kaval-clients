@@ -212,14 +212,6 @@ describe("MCP policy-update tools", () => {
       await client.callTool({ name: "list_extraction_schemas", arguments: {} }),
     ) as { extraction_schemas?: Array<{ id?: string }> };
     expect(listed.extraction_schemas?.[0]?.id).toBe(SCHEMA_ID);
-    await client.callTool({
-      name: "list_extraction_schemas", arguments: { watched_only: false },
-    });
-    expect(harness.requests.at(-1)?.path).toBe("/v1/extraction-schemas?watched_only=false");
-    await client.callTool({
-      name: "list_extraction_schemas", arguments: { watched_only: true },
-    });
-    expect(harness.requests.at(-1)?.path).toBe("/v1/extraction-schemas?watched_only=true");
   });
 
   it("requests a payer + period run, gets it, and lists runs with filters", async () => {

@@ -285,16 +285,3 @@ def test_policy_update_mutations_require_ids_before_network():
             c.get_policy_update("  ")
         with pytest.raises(ValueError, match="package_id is required"):
             c.get_policy_update_package("  ")
-
-
-def test_list_schema_visibility():
-    queries = []
-
-    def handler(request):
-        queries.append(dict(request.url.params))
-        return httpx.Response(200, json={"extraction_schemas": []})
-
-    with make_client(handler) as c:
-        c.list_extraction_schemas()
-        c.list_extraction_schemas(watched_only=False)
-    assert queries == [{"watched_only": "true"}, {"watched_only": "false"}]
