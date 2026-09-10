@@ -499,3 +499,9 @@ pip install -e ".[dev]"            # from sdks/python (development)
 pytest                             # hermetic contract tests (httpx MockTransport)
 KAVAL_BASE_URL=https://api.usekaval.com KAVAL_API_KEY=kv_live_... pytest   # also runs the live test
 ```
+
+Delete an unused extraction schema with `kaval.delete_extraction_schema(schema_id)`.
+Historical extraction records remain available. An active watched source prevents deletion.
+
+Rename a schema with `kaval.rename_extraction_schema(schema_id, name="New name")`.
+Its definition and hash remain unchanged.

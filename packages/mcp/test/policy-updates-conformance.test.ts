@@ -42,7 +42,27 @@ function policyUpdatesFetch(): {
     });
 
     let response: unknown;
-    if (parsed.pathname === "/v1/extraction-schemas" && method === "POST") {
+    if (
+      parsed.pathname === `/v1/extraction-schemas/${SCHEMA_ID}` &&
+      method === "PATCH"
+    ) {
+      response = {
+        extraction_schema: {
+          id: SCHEMA_ID,
+          name: "Renamed schema",
+          json_schema: { type: "object" },
+          schema_sha256: "a".repeat(64),
+        },
+      };
+    } else if (
+      parsed.pathname === `/v1/extraction-schemas/${SCHEMA_ID}` &&
+      method === "DELETE"
+    ) {
+      response = { deleted: true, id: SCHEMA_ID };
+    } else if (
+      parsed.pathname === "/v1/extraction-schemas" &&
+      method === "POST"
+    ) {
       response = {
         extraction_schema: {
           id: SCHEMA_ID,
@@ -213,6 +233,39 @@ describe("MCP policy-update tools", () => {
       await client.callTool({ name: "list_extraction_schemas", arguments: {} }),
     ) as { extraction_schemas?: Array<{ id?: string }> };
     expect(listed.extraction_schemas?.[0]?.id).toBe(SCHEMA_ID);
+  });
+
+  it("renames an extraction schema", async () => {
+    const harness = policyUpdatesFetch();
+    const client = await connect(harness.fetch);
+    const result = parseToolText(
+      await client.callTool({
+        name: "rename_extraction_schema",
+        arguments: { id: SCHEMA_ID, name: "Renamed schema" },
+      }),
+    );
+    expect(result).toMatchObject({ id: SCHEMA_ID, name: "Renamed schema" });
+    expect(harness.requests[0]).toMatchObject({
+      method: "PATCH",
+      path: `/v1/extraction-schemas/${SCHEMA_ID}`,
+      body: { name: "Renamed schema" },
+    });
+  });
+
+  it("deletes an extraction schema", async () => {
+    const harness = policyUpdatesFetch();
+    const client = await connect(harness.fetch);
+    const result = parseToolText(
+      await client.callTool({
+        name: "delete_extraction_schema",
+        arguments: { id: SCHEMA_ID },
+      }),
+    );
+    expect(result).toEqual({ deleted: true, id: SCHEMA_ID });
+    expect(harness.requests[0]).toMatchObject({
+      method: "DELETE",
+      path: `/v1/extraction-schemas/${SCHEMA_ID}`,
+    });
   });
 
   it("requests a payer + period run, gets it, and lists runs with filters", async () => {
