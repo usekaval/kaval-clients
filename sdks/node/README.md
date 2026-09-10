@@ -718,3 +718,9 @@ Demo results carry no organizational authority. A production `ALLOW` requires a 
 action policy and applicable empirical calibration; `REVIEW` is never permission to act.
 
 The Python client mirrors this surface: `pip install kaval`.
+
+Delete an unused extraction schema with `await kaval.deleteExtractionSchema(schemaId)`.
+Historical extraction records remain available. An active watched source prevents deletion.
+
+Rename a schema with `await kaval.renameExtractionSchema(schemaId, "New name")`.
+Its definition and hash remain unchanged.

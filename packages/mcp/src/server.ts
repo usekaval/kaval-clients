@@ -422,6 +422,15 @@ interface WireClient {
     input: Record<string, unknown>,
     options?: TransportOptions,
   ): Promise<unknown>;
+  renameExtractionSchema(
+    id: string,
+    name: string,
+    options?: TransportOptions,
+  ): Promise<unknown>;
+  deleteExtractionSchema(
+    id: string,
+    options?: TransportOptions,
+  ): Promise<unknown>;
   listExtractionSchemas(options?: TransportOptions): Promise<unknown>;
   createPolicyUpdate(
     input: Record<string, unknown>,
@@ -1136,6 +1145,40 @@ export function createMcpServer(client: Kaval): McpServer {
           ),
         signal,
       ),
+  );
+
+  server.registerTool(
+    "rename_extraction_schema",
+    {
+      description:
+        "Rename a schema without changing its definition or hash. Active watched sources can continue to use it.",
+      inputSchema: {
+        id: uuidInput.describe("The extraction schema ID."),
+        name: z
+          .string()
+          .trim()
+          .min(1)
+          .max(256)
+          .describe("The new display name."),
+      },
+      annotations: { destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, name }, { signal }) =>
+      safe(() => api.renameExtractionSchema(id, name, { signal }), signal),
+  );
+
+  server.registerTool(
+    "delete_extraction_schema",
+    {
+      description:
+        "Delete a schema from lists and selectors. Historical extraction records remain available. Returns a conflict if an active watched source uses it.",
+      inputSchema: {
+        id: uuidInput.describe("The extraction schema ID to delete."),
+      },
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    async ({ id }, { signal }) =>
+      safe(() => api.deleteExtractionSchema(id, { signal }), signal),
   );
 
   server.registerTool(

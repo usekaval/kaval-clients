@@ -285,3 +285,26 @@ def test_policy_update_mutations_require_ids_before_network():
             c.get_policy_update("  ")
         with pytest.raises(ValueError, match="package_id is required"):
             c.get_policy_update_package("  ")
+
+
+def test_delete_extraction_schema():
+    def handler(request):
+        assert request.method == "DELETE"
+        assert request.url.path == f"/v1/extraction-schemas/{SCHEMA['id']}"
+        return httpx.Response(200, json={"deleted": True, "id": SCHEMA["id"]})
+
+    with make_client(handler) as c:
+        assert c.delete_extraction_schema(SCHEMA["id"]) == {"deleted": True, "id": SCHEMA["id"]}
+
+
+def test_rename_extraction_schema():
+    renamed = {**SCHEMA, "name": "New name"}
+
+    def handler(request):
+        assert request.method == "PATCH"
+        assert request.url.path == f"/v1/extraction-schemas/{SCHEMA['id']}"
+        assert json.loads(request.content) == {"name": "New name"}
+        return httpx.Response(200, json={"extraction_schema": renamed})
+
+    with make_client(handler) as c:
+        assert c.rename_extraction_schema(SCHEMA["id"], name="New name") == renamed

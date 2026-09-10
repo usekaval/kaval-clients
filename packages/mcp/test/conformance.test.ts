@@ -114,6 +114,8 @@ describe("MCP conformance", () => {
       "list_training_feedback",
       "record_training_feedback_consent",
       "create_extraction_schema",
+      "rename_extraction_schema",
+      "delete_extraction_schema",
       "list_extraction_schemas",
       "create_policy_update",
       "get_policy_update",

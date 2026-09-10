@@ -1082,6 +1082,42 @@ class KavalClient:
         )
         return cast(ExtractionSchema, payload["extraction_schema"])
 
+    def rename_extraction_schema(
+        self,
+        schema_id: str,
+        *,
+        name: str,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> ExtractionSchema:
+        """Rename a schema without changing its definition or hash."""
+        payload = self._request(
+            "PATCH",
+            f"/v1/extraction-schemas/{_path_segment(schema_id, name='schema_id')}",
+            {"name": name},
+            timeout=timeout,
+            cancellation_token=cancellation_token,
+        )
+        return cast(ExtractionSchema, payload["extraction_schema"])
+
+    def delete_extraction_schema(
+        self,
+        schema_id: str,
+        *,
+        timeout: RequestTimeout = None,
+        cancellation_token: Optional[KavalCancellationToken] = None,
+    ) -> dict[str, Any]:
+        """Delete a schema while retaining historical extraction records."""
+        return cast(
+            "dict[str, Any]",
+            self._request(
+                "DELETE",
+                f"/v1/extraction-schemas/{_path_segment(schema_id, name='schema_id')}",
+                timeout=timeout,
+                cancellation_token=cancellation_token,
+            ),
+        )
+
     def list_extraction_schemas(
         self,
         *,
