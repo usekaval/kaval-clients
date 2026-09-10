@@ -1245,6 +1245,34 @@ export class Kaval {
     return extraction_schema;
   }
 
+  async renameExtractionSchema(
+    schemaId: string,
+    name: string,
+    options?: RequestOptions,
+  ): Promise<ExtractionSchema> {
+    const { extraction_schema } = await this.request<{
+      extraction_schema: ExtractionSchema;
+    }>(
+      "PATCH",
+      `/v1/extraction-schemas/${encodeId(schemaId)}`,
+      { name },
+      options,
+    );
+    return extraction_schema;
+  }
+
+  deleteExtractionSchema(
+    schemaId: string,
+    options?: RequestOptions,
+  ): Promise<{ deleted: true; id: string }> {
+    return this.request(
+      "DELETE",
+      `/v1/extraction-schemas/${encodeId(schemaId)}`,
+      undefined,
+      options,
+    );
+  }
+
   async listExtractionSchemas(
     options?: RequestOptions,
   ): Promise<ExtractionSchema[]> {

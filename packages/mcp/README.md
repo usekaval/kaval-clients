@@ -323,3 +323,10 @@ const server = createMcpServer(
   new Kaval({ apiKey: process.env.KAVAL_API_KEY }),
 );
 ```
+
+Use `delete_extraction_schema` with `{ "id": "<schema-id>" }` to delete an unused schema.
+Deletion removes the schema from lists and selectors. Historical extraction records retain its definition.
+If an active watched source uses the schema, the API returns `409 schema_in_use`.
+
+Use `rename_extraction_schema` with `{ "id": "<schema-id>", "name": "New name" }` to rename a schema.
+Its definition and hash remain unchanged.
