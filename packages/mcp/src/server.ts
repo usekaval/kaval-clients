@@ -422,7 +422,7 @@ interface WireClient {
     input: Record<string, unknown>,
     options?: TransportOptions,
   ): Promise<unknown>;
-  listExtractionSchemas(options?: TransportOptions): Promise<unknown>;
+  listExtractionSchemas(options?: TransportOptions & { watched_only?: boolean }): Promise<unknown>;
   createPolicyUpdate(
     input: Record<string, unknown>,
     options?: TransportOptions,
@@ -1142,13 +1142,17 @@ export function createMcpServer(client: Kaval): McpServer {
     "list_extraction_schemas",
     {
       description:
-        "List the extraction schemas registered in this workspace, newest first.",
-      inputSchema: {},
+        "List schemas for active watched sources, newest first. Set watched_only to false to include all workspace schemas.",
+      inputSchema: {
+        watched_only: z.boolean().optional().describe(
+          "Show only schemas used by active watched sources. Defaults to true.",
+        ),
+      },
     },
-    async (_args, { signal }) =>
+    async ({ watched_only }, { signal }) =>
       safe(
         async () => ({
-          extraction_schemas: await api.listExtractionSchemas({ signal }),
+          extraction_schemas: await api.listExtractionSchemas({ signal, watched_only }),
         }),
         signal,
       ),

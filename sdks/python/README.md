@@ -164,6 +164,8 @@ run = kaval.create_policy_update(
 kaval.list_policy_updates(payer_id="aetna", period="2026-08")
 kaval.get_policy_update(run["id"])
 kaval.list_extraction_schemas()
+# Include schemas without an active watched source.
+kaval.list_extraction_schemas(watched_only=False)
 kaval.get_extraction_schema(schema["id"])
 ```
 
